@@ -50,21 +50,23 @@ def translation_matrix(x, y, z):
 
 # Lily pad logic
 class LilyPad:
-    def __init__(self, x, y, speed, direction):
+    def __init__(self, x, y, speed, direction, right_bound, left_bound):
         self.pos = [x, y, 0.0]
         self.speed = speed
         self.direction = direction  # 1 = right, -1 = left
         self.vertices, self.indices = create_circle(self.pos, 0.1, [0.4, 0.8, 0.4], points=30)
         self.vao, self.count = create_object(self.vertices, self.indices)
+        self.right_bound = right_bound
+        self.left_bound = left_bound
 
     def update(self, dt):
         self.pos[0] += self.direction * self.speed * dt
 
         # **Keep movement within river bounds**
-        if self.pos[0] > 0.59:
+        if self.pos[0] > self.right_bound:
             # self.pos[0] = -0.7  # Wrap around to left
             self.direction = -self.direction  # Change direction
-        elif self.pos[0] < -0.59:
+        elif self.pos[0] < self.left_bound:
             # self.pos[0] = 0.7  # Wrap around to right
             self.direction = -self.direction  # Change direction
 
@@ -90,16 +92,21 @@ def main():
 
     right_grass_vertices, right_grass_indices = create_rect(0.7, -1.0, 0.3, 2.0, [0.0, 0.8, 0.0])
     right_grass_vao, right_grass_count = create_object(right_grass_vertices, right_grass_indices)
+    
+    
+    fixed_y_positions = [ -0.1, 0.15, -0.25, 0.3, -0.4, 0.45]
 
     # Generate moving lily pads **within the river bounds**
     lily_pads = [
         LilyPad(
             x=random.uniform(-0.05, 0.05),  # X spawn within river
-            y=random.uniform(-0.5, 0.5),  # Y spread across river
+            y=y_fixed,  # Y spread across river
             speed=random.uniform(0.3, 0.6),
+            right_bound=random.uniform(0.59, 0.4),
+            left_bound=random.uniform(-0.59, -0.4),
             direction=random.choice([-1, 1])
         )
-        for _ in range(5)
+        for y_fixed in fixed_y_positions
     ]
 
     # Player variables
