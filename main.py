@@ -11,12 +11,10 @@ from utils.window_manager import WindowManager
 from utils.graphics import Shader
 from assets.objects.objects import create_rect, create_circle
 
-# Load shader source
 def load_shader_source(filepath):
     with open(filepath, 'r') as f:
         return f.read()
 
-# Create an OpenGL object (VAO, VBO, EBO)
 def create_object(vertices, indices):
     vao = glGenVertexArrays(1)
     glBindVertexArray(vao)
@@ -39,7 +37,6 @@ def create_object(vertices, indices):
     glBindVertexArray(0)
     return vao, len(indices)
 
-# Matrix transformation for movement
 def translation_matrix(x, y, z):
     return np.array([
         [1, 0, 0, x],
@@ -48,31 +45,33 @@ def translation_matrix(x, y, z):
         [0, 0, 0, 1]
     ], dtype=np.float32)
 
-# Lily pad logic
+# Lily pad logic with horizontal bounds.
 class LilyPad:
-    def __init__(self, x, y, speed, direction, right_bound, left_bound):
+    def __init__(self, x, y, speed, direction, right_bound, left_bound, radius=0.1):
         self.pos = [x, y, 0.0]
         self.speed = speed
         self.direction = direction  # 1 = right, -1 = left
-        self.vertices, self.indices = create_circle(self.pos, 0.1, [0.4, 0.8, 0.4], points=30)
+        self.radius = radius
+        self.vertices, self.indices = create_circle(self.pos, self.radius, [0.4, 0.8, 0.4], points=30)
         self.vao, self.count = create_object(self.vertices, self.indices)
         self.right_bound = right_bound
         self.left_bound = left_bound
 
     def update(self, dt):
         self.pos[0] += self.direction * self.speed * dt
-
-        # **Keep movement within river bounds**
         if self.pos[0] > self.right_bound:
-            # self.pos[0] = -0.7  # Wrap around to left
             self.direction = -self.direction  # Change direction
         elif self.pos[0] < self.left_bound:
-            # self.pos[0] = 0.7  # Wrap around to right
             self.direction = -self.direction  # Change direction
+
+    def collides_with(self, player_x, effective_y):
+        # Calculate distance between player and lily pad center
+        distance = np.sqrt((player_x - self.pos[0])**2 + (effective_y - self.pos[1])**2)
+        return distance < self.radius+0.1
 
 def main():
     width, height = 800, 800
-    wm = WindowManager(width, height, "Player Movement with Moving Lily Pads")
+    wm = WindowManager(width, height, "Player Movement with Lily Pad Collision")
 
     imgui.create_context()
     imgui_impl = PygameRenderer()
@@ -83,7 +82,7 @@ def main():
 
     modelLoc = glGetUniformLocation(shader_program.ID, "model")
 
-    # Create environment objects
+    # Create environment objects.
     left_grass_vertices, left_grass_indices = create_rect(-1.0, -1.0, 0.3, 2.0, [0.0, 0.8, 0.0])
     left_grass_vao, left_grass_count = create_object(left_grass_vertices, left_grass_indices)
 
@@ -92,31 +91,29 @@ def main():
 
     right_grass_vertices, right_grass_indices = create_rect(0.7, -1.0, 0.3, 2.0, [0.0, 0.8, 0.0])
     right_grass_vao, right_grass_count = create_object(right_grass_vertices, right_grass_indices)
-    
-    
-    fixed_y_positions = [ -0.1, 0.15, -0.25, 0.3, -0.4, 0.45]
 
-    # Generate moving lily pads **within the river bounds**
+    # Spawn lily pads at fixed y positions.
+    fixed_y_positions = [-0.1, 0.15, -0.25, 0.3, -0.4, 0.45]
     lily_pads = [
         LilyPad(
-            x=random.uniform(-0.05, 0.05),  # X spawn within river
-            y=y_fixed,  # Y spread across river
-            speed=random.uniform(0.3, 0.6),
-            right_bound=random.uniform(0.59, 0.4),
-            left_bound=random.uniform(-0.59, -0.4),
-            direction=random.choice([-1, 1])
+            x=random.uniform(-0.05, 0.05),  # X spawn within a small range around 0.
+            y=y_val,
+            speed=random.uniform(0.1, 0.3),
+            direction=random.choice([-1, 1]),
+            right_bound=0.59,
+            left_bound=-0.59
         )
-        for y_fixed in fixed_y_positions
+        for y_val in fixed_y_positions
     ]
 
-    # Player variables
+    # Player variables.
     player_pos = [-0.8, 0.0, 0.0]
-    player_vertices, player_indices = create_circle([0, 0, 0], 0.08, [1.0, 0.5, 0.0], points=30)
+    player_vertices, player_indices = create_circle([0, 0, 0], 0.05, [1.0, 0.5, 0.0], points=30)
     player_vao, player_count = create_object(player_vertices, player_indices)
 
-    speed = 1.5
-    jump_duration = 30
-    jump_height = 0.3
+    speed = 1  # Normal movement speed.
+    jump_duration = 30  # Frames.
+    jump_height = 0.3  # Maximum jump offset.
     jump_time = 0
     is_jumping = False
 
@@ -129,9 +126,10 @@ def main():
 
         keys = pygame.key.get_pressed()
 
-        # Reduce movement speed when jumping
-        movement_speed = speed * 0.5 if is_jumping else speed  
+        # Use reduced speed when jumping.
+        movement_speed = speed * 0.5 if is_jumping else speed
 
+        # Horizontal movement (WASD).
         if keys[pygame.K_a]:
             player_pos[0] -= movement_speed * dt
         if keys[pygame.K_d]:
@@ -141,7 +139,7 @@ def main():
         if keys[pygame.K_s]:
             player_pos[1] -= movement_speed * dt
 
-        # Jump Logic
+        # Jump logic.
         if keys[pygame.K_SPACE] and not is_jumping:
             is_jumping = True
             jump_time = 0
@@ -150,29 +148,46 @@ def main():
             jump_time += 1
             t = jump_time / jump_duration
             jump_offset = jump_height * 4 * t * (1 - t)
-
             if jump_time >= jump_duration:
                 is_jumping = False
         else:
-            jump_offset = 0 
+            jump_offset = 0
 
-        # Keep player within bounds
+        # Keep player within bounds.
         player_pos[0] = max(-1.0, min(1.0, player_pos[0]))
         player_pos[1] = max(-1.0, min(1.0, player_pos[1]))
 
-        # 🚨 Game Over Condition: If Player Touches the River
-        if -0.7 <= player_pos[0] <= 0.7 and jump_offset == 0:
-            print("Game Over! Player fell into the river.")
-            wm.quit()
-            sys.exit()
+        # Compute effective y for collision (base y + jump offset).
+        effective_y = player_pos[1] + jump_offset
 
-        # 🎉 Win Condition: If Player Reaches the Right Grass
+        # Collision Detection:
+        # Only perform collision check if the player is near the ground (i.e. jump_offset is small)
+        # This allows mid-air movement without triggering game over.
+        if -0.7 <= player_pos[0] <= 0.7:  # Only check when player is over river
+            player_safe = False
+            
+            if is_jumping and jump_offset > 0.05:  # If player is high in jump, they're safe
+                player_safe = True
+            else:
+                for lily_pad in lily_pads:
+                    if lily_pad.collides_with(player_pos[0], effective_y):
+                        player_safe = True
+                        break
+            
+            if not player_safe:
+                # Only end game if player is close to water level
+                if not is_jumping or (is_jumping and jump_offset < 0.05):
+                    print("Game Over! Player fell into the river.")
+                    wm.quit()
+                    sys.exit()
+
+        # Win Condition: If Player Reaches the Right Grass.
         if player_pos[0] > 0.7:
             print("You Won! Player reached the other side.")
             wm.quit()
             sys.exit()
 
-        # Update lily pad positions
+        # Update lily pad positions.
         for lily_pad in lily_pads:
             lily_pad.update(dt)
 
@@ -187,23 +202,28 @@ def main():
 
         glBindVertexArray(left_grass_vao)
         glDrawElements(GL_TRIANGLES, left_grass_count, GL_UNSIGNED_INT, None)
+        glBindVertexArray(0)
 
         glBindVertexArray(river_vao)
         glDrawElements(GL_TRIANGLES, river_count, GL_UNSIGNED_INT, None)
+        glBindVertexArray(0)
 
         glBindVertexArray(right_grass_vao)
         glDrawElements(GL_TRIANGLES, right_grass_count, GL_UNSIGNED_INT, None)
+        glBindVertexArray(0)
 
         for lily_pad in lily_pads:
             model = translation_matrix(lily_pad.pos[0], lily_pad.pos[1], lily_pad.pos[2])
             glUniformMatrix4fv(modelLoc, 1, GL_TRUE, model)
             glBindVertexArray(lily_pad.vao)
             glDrawElements(GL_TRIANGLES, lily_pad.count, GL_UNSIGNED_INT, None)
+            glBindVertexArray(0)
 
-        model = translation_matrix(player_pos[0], player_pos[1] + jump_offset, player_pos[2])
+        model = translation_matrix(player_pos[0], effective_y, player_pos[2])
         glUniformMatrix4fv(modelLoc, 1, GL_TRUE, model)
         glBindVertexArray(player_vao)
         glDrawElements(GL_TRIANGLES, player_count, GL_UNSIGNED_INT, None)
+        glBindVertexArray(0)
 
         wm.swap_buffers()
 
@@ -213,5 +233,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
-
