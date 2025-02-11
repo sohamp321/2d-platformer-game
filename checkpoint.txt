@@ -1,0 +1,17 @@
+Lives: 3
+Health: 80
+Keys Collected: 1
+Waves:
+  Wave 0: pos=[0.39760183654071596, 0.0, 0.0], speed=0.05, width=0.22, height=2.50
+  Wave 1: pos=[0.12159834626895201, 0.0, 0.0], speed=0.08, width=0.16, height=1.48
+LilyPads:
+  LilyPad 0: pos=[-0.27171761783136206, -0.1, 0.0], speed=0.17, direction=1, radius=0.10
+  LilyPad 1: pos=[0.20984323514774145, 0.15, 0.0], speed=0.25, direction=1, radius=0.10
+  LilyPad 2: pos=[0.044365334870840115, -0.25, 0.0], speed=0.18, direction=-1, radius=0.10
+  LilyPad 3: pos=[0.2607768705826915, 0.3, 0.0], speed=0.25, direction=1, radius=0.10
+  LilyPad 4: pos=[0.34965518259579137, -0.4, 0.0], speed=0.20, direction=1, radius=0.10
+  LilyPad 5: pos=[-0.4477690577498915, 0.45, 0.0], speed=0.28, direction=1, radius=0.10
+Keys:
+  Key 0: lily_pad_index=3, collected=False
+  Key 1: lily_pad_index=4, collected=True
+  Key 2: lily_pad_index=1, collected=False
