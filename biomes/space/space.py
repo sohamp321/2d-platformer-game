@@ -17,13 +17,12 @@ def new_game(wm):
     """
     A space-themed platformer using normalized coordinates.
     Level design:
-      - 1 WinningPlatform (blue) on the right (y=0.75, height=0.25 so top=1.0).
-      - 3 Normal Platforms.
+      - 1 WinningPlatform (blue) on the right.
+      - Several Normal Platforms.
       - 2 Evil Platforms.
-    When the player is on the WinningPlatform and their top touches y>=1.0, they win.
-    The player starts with 3 lives. Touching an EvilPlatform causes loss of one life and a respawn.
-    On losing all lives, the game ends.
-    The provided window manager (wm) is used.
+    The player starts with 3 lives and 100 health.
+    Asteroids (gray circles) spawn randomly from the right and travel left.
+    Colliding with an asteroid causes 10 damage; if health reaches 0, the player loses a life.
     """
     # --- Helper Function ---
     def translation_matrix(x, y, z):
@@ -59,24 +58,22 @@ def new_game(wm):
     shader.use()
     model_loc = glGetUniformLocation(shader.ID, "model")
 
-    # --- Define Platform Classes ---
+    # --- Platform Classes ---
 
     class Platform:
         def __init__(self, x, y, width, height, speed, lower_bound, upper_bound):
             """
-            x, y: For a normal platform, x is the center and y is the bottom edge.
-            width, height: Dimensions in normalized coordinates.
-            lower_bound, upper_bound: Vertical limits for its movement.
+            Normal platform: x is center, y is bottom edge.
             """
             self.x = x
             self.y = y
             self.width = width
             self.height = height
             self.speed = speed
-            self.direction = 1  # 1 = moving upward; -1 = moving downward.
+            self.direction = 1
             self.lower_bound = lower_bound
             self.upper_bound = upper_bound
-            # Create a green rectangle.
+            # Green rectangle.
             vertices, indices = create_rect(-width/2, 0, width, height, [0.0, 1.0, 0.0])
             self.vao, self.count = create_object(vertices, indices)
 
@@ -95,20 +92,19 @@ def new_game(wm):
     class EvilPlatform(Platform):
         def __init__(self, x, y, width, height, speed, lower_bound, upper_bound):
             """
-            An evil platform with spikes. Landing on it causes the player to lose a life.
+            Evil platform: red base with white spikes.
             """
             super().__init__(x, y, width, height, speed, lower_bound, upper_bound)
             # Override base color to red.
             vertices, indices = create_rect(-width/2, 0, width, height, [1.0, 0.0, 0.0])
             self.vao, self.count = create_object(vertices, indices)
-            # Create spikes along the top.
-            self.spikes = []  # List of (VAO, spike_count) tuples.
+            # Create spikes.
+            self.spikes = []
             n_spikes = 3
             spike_height = 0.05
             spike_base = width / (n_spikes * 1.5)
             for i in range(n_spikes):
                 spike_center_x = -width/2 + (i+1) * width/(n_spikes+1)
-                # Define triangle vertices (local coordinates)
                 v1 = [spike_center_x - spike_base/2, self.height, 0]
                 v2 = [spike_center_x + spike_base/2, self.height, 0]
                 v3 = [spike_center_x, self.height + spike_height, 0]
@@ -130,7 +126,6 @@ def new_game(wm):
                 glEnableVertexAttribArray(0)
                 glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, stride, ctypes.c_void_p(3 * ctypes.sizeof(ctypes.c_float)))
                 glEnableVertexAttribArray(1)
-                # Create and bind EBO for indices.
                 ebo_spike = glGenBuffers(1)
                 glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ebo_spike)
                 glBufferData(GL_ELEMENT_ARRAY_BUFFER, spike_indices.nbytes, spike_indices, GL_STATIC_DRAW)
@@ -151,18 +146,19 @@ def new_game(wm):
     class WinningPlatform(Platform):
         def __init__(self, x, y, width, height, speed, lower_bound, upper_bound):
             """
-            A blue winning platform. When the player is on this platform and their top touches
-            the top of the screen, they win.
+            Winning platform: blue.
             """
             super().__init__(x, y, width, height, speed, lower_bound, upper_bound)
             vertices, indices = create_rect(-width/2, 0, width, height, [0.0, 0.0, 1.0])
             self.vao, self.count = create_object(vertices, indices)
 
+    # --- Define Player Class ---
+
     class Player:
         def __init__(self, x, y, diameter):
             """
-            x, y: center of the circle.
-            diameter: the full width of the circle.
+            x, y: center of the player circle.
+            diameter: full width.
             """
             self.x = x
             self.y = y
@@ -175,8 +171,9 @@ def new_game(wm):
             self.max_jumps = 2
             self.jumps_remaining = self.max_jumps
             self.on_ground = False
+            self.lives = 3
             self.health = 100
-            self.lives = 3  # Player starts with 3 lives.
+            self.max_health = 100
             vertices, indices = create_circle([0, 0, 0], diameter/2, [1.0, 0.0, 0.0], points=30)
             self.vao, self.count = create_object(vertices, indices)
 
@@ -192,7 +189,7 @@ def new_game(wm):
                 plat_right = plat.x + plat.width/2
                 plat_top = plat.y + plat.height
                 if (self.x + self.diameter/2 >= plat_left and self.x - self.diameter/2 <= plat_right):
-                    # Check collision for EvilPlatform first.
+                    # Evil platform collision.
                     if isinstance(plat, EvilPlatform):
                         if abs(player_bottom - plat_top) < 0.02 and self.vy <= 0:
                             self.lives -= 1
@@ -218,6 +215,13 @@ def new_game(wm):
                 self.jumps_remaining -= 1
                 self.on_ground = False
 
+        def take_damage(self, amount):
+            self.health -= amount
+            if self.health <= 0:
+                self.lives -= 1
+                self.health = self.max_health
+                self.respawn()
+
         def respawn(self):
             self.x = self.spawn_x
             self.y = self.spawn_y
@@ -231,12 +235,40 @@ def new_game(wm):
             glDrawElements(GL_TRIANGLES, self.count, GL_UNSIGNED_INT, None)
             glBindVertexArray(0)
 
+    # --- Define Asteroid Class ---
+
+    class Asteroid:
+        def __init__(self, x, y, radius, vx):
+            """
+            Asteroid represented as a circle.
+            x, y: center coordinates.
+            radius: circle radius.
+            vx: horizontal velocity (typically negative for leftward motion).
+            """
+            self.x = x
+            self.y = y
+            self.radius = radius
+            self.vx = vx
+            # Use a gray color.
+            vertices, indices = create_circle([0, 0, 0], radius, [0.5, 0.5, 0.5], points=20)
+            self.vao, self.count = create_object(vertices, indices)
+
+        def update(self, dt):
+            self.x += self.vx * dt
+
+        def draw(self):
+            model = translation_matrix(self.x, self.y, 0)
+            glUniformMatrix4fv(model_loc, 1, GL_TRUE, model)
+            glBindVertexArray(self.vao)
+            glDrawElements(GL_TRIANGLES, self.count, GL_UNSIGNED_INT, None)
+            glBindVertexArray(0)
+
     # --- Create Game Objects (Level Design) ---
     # Player: centered at (0, -0.8) with a diameter of 0.1.
     player = Player(0, -0.8, 0.1)
     # Level design: 6+ platforms total.
     platforms = [
-        # 1 WinningPlatform (blue): placed on the right side; bottom at 0.75, height 0.25 so top=1.0.
+        # 1 WinningPlatform (blue): placed on the right side; bottom at 0.75, height 0.25 (top=1.0).
         WinningPlatform(0.8, 0.75, 0.3, 0.05, speed=0.4, lower_bound=0.75, upper_bound=1.0),
         # 3 Normal Platforms (randomized).
         Platform(-0.8, -0.75, random.uniform(0.4, 0.6), 0.05, random.uniform(0.1, 0.2), lower_bound=-0.8, upper_bound=-0.6),
@@ -248,6 +280,10 @@ def new_game(wm):
         EvilPlatform(random.uniform(-0.8, -0.5), 0, 0.3, 0.05, random.uniform(0.2, 0.4), lower_bound=-0.5, upper_bound=0.2),
         EvilPlatform(0.3, 0.5, 0.3, 0.05, random.uniform(0.2, 0.4), lower_bound=-0.5, upper_bound=0.7)
     ]
+
+    # --- Asteroid System ---
+    asteroids = []
+    asteroid_spawn_timer = 0  # Seconds until next asteroid spawn.
 
     clock = pygame.time.Clock()
     running = True
@@ -282,7 +318,36 @@ def new_game(wm):
         for plat in platforms:
             plat.update(dt)
 
-        # Check win condition: if the player is on a WinningPlatform and their top (y+diameter/2) >=1.0.
+        # --- Asteroid spawning ---
+        asteroid_spawn_timer -= dt
+        if asteroid_spawn_timer <= 0:
+            # Spawn a new asteroid at right edge with random y position.
+            spawn_y = random.uniform(-0.9, 0.9)
+            spawn_x = 1.1
+            radius = random.uniform(0.03, 0.07)
+            vx = -random.uniform(0.1, 0.3)  # Moves left.
+            asteroids.append(Asteroid(spawn_x, spawn_y, radius, vx))
+            # Reset timer to a random interval between 1 and 3 seconds.
+            asteroid_spawn_timer = random.uniform(1.0, 3.0)
+
+        # Update asteroids and check for collisions.
+        for asteroid in asteroids[:]:
+            asteroid.update(dt)
+            # Remove asteroid if it goes off the left side.
+            if asteroid.x + asteroid.radius < -1:
+                asteroids.remove(asteroid)
+            else:
+                # Simple circle collision check.
+                dx = player.x - asteroid.x
+                dy = player.y - asteroid.y
+                distance = math.sqrt(dx*dx + dy*dy)
+                if distance < (player.diameter/2 + asteroid.radius):
+                    # Collision: reduce player's health by 10 and remove asteroid.
+                    player.take_damage(10)
+                    if asteroid in asteroids:
+                        asteroids.remove(asteroid)
+
+        # Check win condition: if player is on WinningPlatform and top >= 1.0.
         for plat in platforms:
             if isinstance(plat, WinningPlatform):
                 plat_left = plat.x - plat.width/2
@@ -301,6 +366,8 @@ def new_game(wm):
 
         for plat in platforms:
             plat.draw()
+        for asteroid in asteroids:
+            asteroid.draw()
         player.draw()
 
         wm.swap_buffers()
@@ -310,7 +377,6 @@ def new_game(wm):
             pygame.time.wait(2000)
             running = False
 
-        # Check if lives are exhausted.
         if player.lives <= 0:
             print("Game Over!")
             pygame.time.wait(2000)
