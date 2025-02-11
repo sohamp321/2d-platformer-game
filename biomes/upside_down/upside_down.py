@@ -7,10 +7,42 @@ import random
 from OpenGL.GL import *
 from pygame.locals import DOUBLEBUF, OPENGL, QUIT, KEYDOWN, K_SPACE, K_g
 
+# Initialize pygame and font module.
+pygame.init()
+# Use a font that supports Unicode heart symbols. Change the font name if necessary.
+hud_font = pygame.font.SysFont("Segoe UI Symbol", 24)
+
 # Import your helper modules (assumed to be part of your project structure)
 from utils.window_manager import WindowManager
 from utils.graphics import Shader
 from assets.objects.objects import create_rect, create_circle, create_object
+
+# --- HUD Text Function ---
+def draw_text(text, font_obj, pos_x, pos_y):
+    """Renders text onto a texture and draws it as a quad with its bottom-left corner at (pos_x, pos_y)."""
+    text_surface = font_obj.render(text, True, (255, 255, 255)).convert_alpha()
+    text_width, text_height = text_surface.get_size()
+    text_data = pygame.image.tostring(text_surface, 'RGBA', True)
+
+    texture = glGenTextures(1)
+    glBindTexture(GL_TEXTURE_2D, texture)
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR)
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR)
+    glPixelStorei(GL_UNPACK_ALIGNMENT, 1)
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, text_width, text_height, 0, GL_RGBA, GL_UNSIGNED_BYTE, text_data)
+
+    glEnable(GL_BLEND)
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)
+    glEnable(GL_TEXTURE_2D)
+    glBindTexture(GL_TEXTURE_2D, texture)
+    glBegin(GL_QUADS)
+    glTexCoord2f(0, 0); glVertex2f(pos_x, pos_y)
+    glTexCoord2f(1, 0); glVertex2f(pos_x + text_width, pos_y)
+    glTexCoord2f(1, 1); glVertex2f(pos_x + text_width, pos_y + text_height)
+    glTexCoord2f(0, 1); glVertex2f(pos_x, pos_y + text_height)
+    glEnd()
+    glDisable(GL_TEXTURE_2D)
+    glDeleteTextures([texture])
 
 # --- Helper Function ---
 def translation_matrix(x, y, z):
@@ -25,17 +57,9 @@ def translation_matrix(x, y, z):
 # --- Platform Class (unchanged) ---
 class Platform:
     def __init__(self, x, y, width, height, speed, lower_bound, upper_bound, model_loc):
-        """
-        x, y: The platform's center x-coordinate and the y-coordinate for its bottom edge.
-        width, height: Dimensions in normalized coordinates.
-        speed: Vertical movement speed.
-        lower_bound, upper_bound: The y limits for its movement.
-        model_loc: Uniform location for the model matrix.
-        """
         self.x = x; self.y = y; self.width = width; self.height = height
         self.speed = speed; self.direction = 1
         self.lower_bound = lower_bound; self.upper_bound = upper_bound
-        # Draw a green rectangle.
         vertices, indices = create_rect(-width/2, 0, width, height, [0.0, 1.0, 0.0])
         self.vao, self.count = create_object(vertices.flatten().astype(np.float32), indices)
         self.model_loc = model_loc
@@ -55,10 +79,6 @@ class Platform:
 # --- WinningPlatform Class ---
 class WinningPlatform(Platform):
     def __init__(self, x, y, width, height, speed, lower_bound, upper_bound, model_loc):
-        """
-        A WinningPlatform is drawn in gold. Landing on it wins the game
-        only if all keys have been collected.
-        """
         super().__init__(x, y, width, height, speed, lower_bound, upper_bound, model_loc)
         vertices, indices = create_rect(-width/2, 0, width, height, [1.0, 0.84, 0.0])
         self.vao, self.count = create_object(vertices.flatten().astype(np.float32), indices)
@@ -73,12 +93,6 @@ class WinningPlatform(Platform):
 # --- EvilPlatform Class (with spikes) ---
 class EvilPlatform(Platform):
     def __init__(self, x, y, width, height, speed, lower_bound, upper_bound, model_loc, flip_spike=False):
-        """
-        An EvilPlatform looks like a red platform with white spikes.
-        If flip_spike is False, spikes are drawn on the top edge (for bottom platforms).
-        If flip_spike is True, spikes are drawn on the bottom edge (for top platforms).
-        Landing on one causes the player to lose a life.
-        """
         super().__init__(x, y, width, height, speed, lower_bound, upper_bound, model_loc)
         vertices, indices = create_rect(-width/2, 0, width, height, [1.0, 0.0, 0.0])
         self.vao, self.count = create_object(vertices.flatten().astype(np.float32), indices)
@@ -135,12 +149,6 @@ class EvilPlatform(Platform):
 # --- Key Class ---
 class Key:
     def __init__(self, platform):
-        """
-        A Key is a square collectible attached to a platform.
-        Its position is relative to the platform.
-        For bottom platforms, the key is placed above the platform;
-        for top platforms, below the platform.
-        """
         self.platform = platform
         self.collected = False
         self.size = 0.05
@@ -165,20 +173,15 @@ class Key:
 # --- Arrow Class (rotated to point horizontally) ---
 class Arrow:
     def __init__(self, x, y, width, height, vx):
-        """
-        A white triangular arrow that moves horizontally.
-        The triangle is defined so that its tip initially points to the right.
-        """
         self.x = x
         self.y = y
         self.width = width
         self.height = height
         self.vx = vx
-        # Define a triangle with tip to the right.
         vertices = [
-            -width/2,  height/2, 0.0, 1.0, 1.0, 1.0,  # top left
-            -width/2, -height/2, 0.0, 1.0, 1.0, 1.0,  # bottom left
-             width/2,  0.0,      0.0, 1.0, 1.0, 1.0   # tip (right)
+            -width/2,  height/2, 0.0, 1.0, 1.0, 1.0,
+            -width/2, -height/2, 0.0, 1.0, 1.0, 1.0,
+             width/2,  0.0,      0.0, 1.0, 1.0, 1.0
         ]
         indices = [0, 1, 2]
         vertices = np.array(vertices, dtype=np.float32)
@@ -189,7 +192,6 @@ class Arrow:
         self.x += self.vx * dt
 
     def draw(self, model_loc):
-        # If moving right-to-left, apply a horizontal flip.
         if self.vx < 0:
             scale_matrix = np.array([
                 [-1, 0, 0, 0],
@@ -208,11 +210,6 @@ class Arrow:
 # --- Player Class (with health, damage, and win/damage conditions) ---
 class Player:
     def __init__(self, x, y, diameter, model_loc):
-        """
-        x, y: Center position of the circle.
-        diameter: The full width of the circle.
-        model_loc: Uniform location for the model matrix.
-        """
         self.x = x
         self.y = y
         self.diameter = diameter
@@ -220,7 +217,7 @@ class Player:
         self.spawn_y = y
         self.vy = 0.0
         self.gravity = 1.0
-        self.gravity_direction = -1  # -1 means gravity pulls downward.
+        self.gravity_direction = -1
         self.jump_strength = 0.75
         self.max_jumps = 2
         self.jumps_remaining = self.max_jumps
@@ -392,7 +389,6 @@ def new_game(wm):
     model_loc = glGetUniformLocation(shader.ID, "model")
 
     platforms = []
-    # Use five x-positions such that a width of 0.4 covers [-1,1] exactly.
     x_positions = [-0.8, -0.4, 0.0, 0.4, 0.8]
     
     # Create bottom platforms (spikes on top). The last one (x=0.8) is the winning platform.
@@ -422,7 +418,6 @@ def new_game(wm):
     
     player = Player(0, 0, 0.1, model_loc)
 
-    # Arrow list: white triangular arrows.
     arrows = []
 
     clock = pygame.time.Clock()
@@ -448,6 +443,8 @@ def new_game(wm):
                 running = False
             elif event.type == KEYDOWN:
                 if event.key == K_SPACE:
+                    player.jump()
+                elif event.key == K_g:
                     player.flip_gravity()
 
         keys_pressed = pygame.key.get_pressed()
@@ -499,6 +496,39 @@ def new_game(wm):
         for arrow in arrows:
             arrow.draw(model_loc)
         player.draw()
+
+        # --- Draw HUD ---
+        glUseProgram(0)
+        glMatrixMode(GL_PROJECTION)
+        glPushMatrix()
+        glLoadIdentity()
+        glOrtho(0, wm.width, 0, wm.height, -1, 1)
+        glMatrixMode(GL_MODELVIEW)
+        glPushMatrix()
+        glLoadIdentity()
+        hud_text = f"Lives: {'♥'*player.lives}"
+        draw_text(hud_text, hud_font, 20, wm.height - 70)
+        health_bar_width = 200
+        glColor3f(0.5, 0.5, 0.5)
+        glBegin(GL_QUADS)
+        glVertex2f(20, wm.height - 80)
+        glVertex2f(20, wm.height - 100)
+        glVertex2f(20 + health_bar_width, wm.height - 100)
+        glVertex2f(20 + health_bar_width, wm.height - 80)
+        glEnd()
+        glColor3f(1.0, 0.0, 0.0)
+        glBegin(GL_QUADS)
+        glVertex2f(20, wm.height - 80)
+        glVertex2f(20, wm.height - 100)
+        glVertex2f(20 + health_bar_width * (player.health / player.max_health), wm.height - 100)
+        glVertex2f(20 + health_bar_width * (player.health / player.max_health), wm.height - 80)
+        glEnd()
+        keys_text = f"Keys: {sum(1 for key in keys if key.collected)}/3"
+        draw_text(keys_text, hud_font, 20, wm.height - 130)
+        glPopMatrix()
+        glMatrixMode(GL_PROJECTION)
+        glPopMatrix()
+        glMatrixMode(GL_MODELVIEW)
 
         wm.swap_buffers()
 
