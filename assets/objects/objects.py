@@ -62,9 +62,6 @@ def create_circle(center, radius, color, points=30):
     return np.array(vertices, dtype=np.float32), np.array(indices, dtype=np.uint32)
 
 
-
-
-
 def create_square(pos, size, color):
     # Create a square centered at pos with given size
     vertices = np.array([
