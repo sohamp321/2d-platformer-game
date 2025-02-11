@@ -1,17 +1,17 @@
 Lives: 3
-Health: 95
-Keys Collected: 1
+Health: 100
+Keys Collected: 2
 Waves:
-  Wave 0: pos=[-0.3947296859083029, 0.0, 0.0], speed=0.08, width=0.18, height=2.50
-  Wave 1: pos=[-0.01861313878991773, 0.0, 0.0], speed=0.07, width=0.16, height=2.50
+  Wave 0: pos=[0.19412460925812078, 0.0, 0.0], speed=0.08, width=0.27, height=2.50
+  Wave 1: pos=[0.3786551598786893, 0.0, 0.0], speed=0.06, width=0.13, height=2.50
 LilyPads:
-  LilyPad 0: pos=[-0.4294430327474403, -0.1, 0.0], speed=0.11, direction=-1, radius=0.10
-  LilyPad 1: pos=[-0.5474747915907167, 0.15, 0.0], speed=0.19, direction=1, radius=0.10
-  LilyPad 2: pos=[0.5556298627609467, -0.25, 0.0], speed=0.15, direction=1, radius=0.10
-  LilyPad 3: pos=[-0.5347553762895246, 0.3, 0.0], speed=0.17, direction=-1, radius=0.10
-  LilyPad 4: pos=[0.4996088434381275, -0.4, 0.0], speed=0.19, direction=-1, radius=0.10
-  LilyPad 5: pos=[-0.3024927320470181, 0.45, 0.0], speed=0.27, direction=1, radius=0.10
+  LilyPad 0: pos=[-0.4462638618121346, -0.1, 0.0], speed=0.16, direction=-1, radius=0.10
+  LilyPad 1: pos=[-0.2967641356915254, 0.15, 0.0], speed=0.15, direction=-1, radius=0.10
+  LilyPad 2: pos=[0.27664939592825416, -0.25, 0.0], speed=0.27, direction=1, radius=0.10
+  LilyPad 3: pos=[-0.03852976660625982, 0.3, 0.0], speed=0.12, direction=-1, radius=0.10
+  LilyPad 4: pos=[-0.1365513640116652, -0.4, 0.0], speed=0.11, direction=1, radius=0.10
+  LilyPad 5: pos=[0.5611881297711583, 0.45, 0.0], speed=0.18, direction=-1, radius=0.10
 Keys:
-  Key 0: lily_pad_index=3, collected=False
+  Key 0: lily_pad_index=5, collected=False
   Key 1: lily_pad_index=0, collected=True
-  Key 2: lily_pad_index=1, collected=False
+  Key 2: lily_pad_index=2, collected=True
