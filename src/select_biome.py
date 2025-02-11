@@ -48,7 +48,7 @@ def display_biome_menu(wm):
         print("Custom font not found, using default.", e)
         font = pygame.font.SysFont("Arial", 28)
     
-    options = ["River", "Space", "Desert"]
+    options = ["River", "Space", "Upside Down"]
     selected = 0
     
     running = True

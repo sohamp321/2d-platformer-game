@@ -755,10 +755,7 @@ def new_game(wm):
                 self.vy = 0
                 self.on_ground = True
                 self.jumps_remaining = self.max_jumps
-            if self.damage_cooldown > 0:
-                self.damage_cooldown -= dt
-                if self.damage_cooldown < 0:
-                    self.damage_cooldown = 0
+
         def jump(self):
             if self.jumps_remaining > 0:
                 self.vy = self.jump_strength
