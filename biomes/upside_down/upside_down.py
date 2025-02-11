@@ -60,7 +60,6 @@ class WinningPlatform(Platform):
         only if all keys have been collected.
         """
         super().__init__(x, y, width, height, speed, lower_bound, upper_bound, model_loc)
-        # Override with a gold-colored rectangle.
         vertices, indices = create_rect(-width/2, 0, width, height, [1.0, 0.84, 0.0])
         self.vao, self.count = create_object(vertices.flatten().astype(np.float32), indices)
 
@@ -77,11 +76,10 @@ class EvilPlatform(Platform):
         """
         An EvilPlatform looks like a red platform with white spikes.
         If flip_spike is False, spikes are drawn on the top edge (for bottom platforms).
-        If True, spikes are drawn on the bottom edge (for top platforms).
+        If flip_spike is True, spikes are drawn on the bottom edge (for top platforms).
         Landing on one causes the player to lose a life.
         """
         super().__init__(x, y, width, height, speed, lower_bound, upper_bound, model_loc)
-        # Override with a red rectangle.
         vertices, indices = create_rect(-width/2, 0, width, height, [1.0, 0.0, 0.0])
         self.vao, self.count = create_object(vertices.flatten().astype(np.float32), indices)
         self.spikes = []
@@ -91,16 +89,14 @@ class EvilPlatform(Platform):
         for i in range(n_spikes):
             spike_center_x = -width/2 + (i+1) * width/(n_spikes+1)
             if not flip_spike:
-                # Spikes on the top edge.
                 v1 = [spike_center_x - spike_base/2, self.height, 0]
                 v2 = [spike_center_x + spike_base/2, self.height, 0]
                 v3 = [spike_center_x, self.height + spike_height, 0]
             else:
-                # Spikes on the bottom edge.
                 v1 = [spike_center_x - spike_base/2, 0, 0]
                 v2 = [spike_center_x + spike_base/2, 0, 0]
                 v3 = [spike_center_x, -spike_height, 0]
-            spike_color = [1.0, 1.0, 1.0]  # White spikes
+            spike_color = [1.0, 1.0, 1.0]
             spike_vertices = [
                 v1[0], v1[1], v1[2], *spike_color,
                 v2[0], v2[1], v2[2], *spike_color,
@@ -142,25 +138,22 @@ class Key:
         """
         A Key is a square collectible attached to a platform.
         Its position is relative to the platform.
-        For bottom platforms (y < 0), the key is placed above the platform;
-        for top platforms (y >= 0), below the platform.
+        For bottom platforms, the key is placed above the platform;
+        for top platforms, below the platform.
         """
         self.platform = platform
         self.collected = False
         self.size = 0.05
-        # Determine offset based on platform position.
         if platform.y < 0:
             self.offset = np.array([0, platform.height + 0.03, 0])
         else:
             self.offset = np.array([0, -0.03, 0])
-        # Create a yellow square (using create_rect centered at origin).
         vertices, indices = create_rect(-self.size/2, -self.size/2, self.size, self.size, [1.0, 1.0, 0.0])
         self.vao, self.count = create_object(vertices.flatten().astype(np.float32), indices)
 
     def draw(self, model_loc):
         if self.collected:
             return
-        # Key position is attached to its platform.
         key_x = self.platform.x + self.offset[0]
         key_y = self.platform.y + self.offset[1]
         model = translation_matrix(key_x, key_y, 0)
@@ -169,7 +162,50 @@ class Key:
         glDrawElements(GL_TRIANGLES, self.count, GL_UNSIGNED_INT, None)
         glBindVertexArray(0)
 
-# --- Player Class (with gravity flip, collision, and win/damage conditions) ---
+# --- Arrow Class (rotated to point horizontally) ---
+class Arrow:
+    def __init__(self, x, y, width, height, vx):
+        """
+        A white triangular arrow that moves horizontally.
+        The triangle is defined so that its tip initially points to the right.
+        """
+        self.x = x
+        self.y = y
+        self.width = width
+        self.height = height
+        self.vx = vx
+        # Define a triangle with tip to the right.
+        vertices = [
+            -width/2,  height/2, 0.0, 1.0, 1.0, 1.0,  # top left
+            -width/2, -height/2, 0.0, 1.0, 1.0, 1.0,  # bottom left
+             width/2,  0.0,      0.0, 1.0, 1.0, 1.0   # tip (right)
+        ]
+        indices = [0, 1, 2]
+        vertices = np.array(vertices, dtype=np.float32)
+        indices = np.array(indices, dtype=np.uint32)
+        self.vao, self.count = create_object(vertices, indices)
+
+    def update(self, dt):
+        self.x += self.vx * dt
+
+    def draw(self, model_loc):
+        # If moving right-to-left, apply a horizontal flip.
+        if self.vx < 0:
+            scale_matrix = np.array([
+                [-1, 0, 0, 0],
+                [0, 1, 0, 0],
+                [0, 0, 1, 0],
+                [0, 0, 0, 1]
+            ], dtype=np.float32)
+            model = translation_matrix(self.x, self.y, 0) @ scale_matrix
+        else:
+            model = translation_matrix(self.x, self.y, 0)
+        glUniformMatrix4fv(model_loc, 1, GL_TRUE, model)
+        glBindVertexArray(self.vao)
+        glDrawElements(GL_TRIANGLES, self.count, GL_UNSIGNED_INT, None)
+        glBindVertexArray(0)
+
+# --- Player Class (with health, damage, and win/damage conditions) ---
 class Player:
     def __init__(self, x, y, diameter, model_loc):
         """
@@ -196,6 +232,23 @@ class Player:
         vertices, indices = create_circle([0, 0, 0], diameter/2, [1.0, 0.0, 0.0], points=30)
         self.vao, self.count = create_object(vertices, indices)
         self.model_loc = model_loc
+
+    def take_damage(self, amount):
+        if self.damage_cooldown > 0:
+            return
+        self.health -= amount
+        if self.health <= 0:
+            self.lives -= 1
+            self.health = self.max_health
+            self.respawn()
+        self.damage_cooldown = 1.0
+
+    def respawn(self):
+        self.x = self.spawn_x
+        self.y = self.spawn_y
+        self.vy = 0
+        self.jumps_remaining = self.max_jumps
+        print("Respawning... Lives left:", self.lives)
 
     def update(self, dt, platforms, all_keys_collected):
         if not self.on_ground:
@@ -293,13 +346,6 @@ class Player:
         self.gravity_direction *= -1
         self.vy = 0
 
-    def respawn(self):
-        self.x = 0
-        self.y = 0
-        self.vy = 0
-        self.jumps_remaining = self.max_jumps
-        print("Respawning... Lives left:", self.lives)
-
     def draw(self):
         if self.damage_cooldown > 0:
             if (pygame.time.get_ticks() // 100) % 2 == 0:
@@ -316,8 +362,10 @@ def new_game(wm):
     Creates a world with 10 moving platforms (5 bottom, 5 top) and a player.
     Every alternating platform is evil (with spikes); for top evil platforms, spikes are rendered on the bottom.
     The bottom right platform is the winning platform.
-    Three keys (yellow squares) are placed on three randomly selected non-winning platforms.
-    You only win if you have collected all 3 keys before landing on the winning platform.
+    Three keys are placed on randomly selected non-evil, non-winning platforms.
+    White triangular arrows randomly spawn and move horizontally.
+    If an arrow touches the player, 10 health is deducted.
+    The player only wins if all keys are collected and the winning platform is landed on.
     Press SPACE to jump and G to flip gravity.
     """
     vertex_src = """
@@ -344,7 +392,7 @@ def new_game(wm):
     model_loc = glGetUniformLocation(shader.ID, "model")
 
     platforms = []
-    # x-positions such that width 0.4 covers [-1, 1] exactly.
+    # Use five x-positions such that a width of 0.4 covers [-1,1] exactly.
     x_positions = [-0.8, -0.4, 0.0, 0.4, 0.8]
     
     # Create bottom platforms (spikes on top). The last one (x=0.8) is the winning platform.
@@ -365,10 +413,8 @@ def new_game(wm):
             p = EvilPlatform(x, 0.85, 0.4, 0.05, random.uniform(0.2, 0.4), 0.75, 0.95, model_loc, flip_spike=True)
         platforms.append(p)
     
-    # Randomly select 3 platforms (excluding the winning platform) for key placement.
-    candidate_indices = list(range(len(platforms)))
-    winning_index = x_positions.index(0.8)  # Winning platform is the first bottom row index 4.
-    candidate_indices.remove(winning_index)
+    # Candidate indices for keys: only choose from normal platforms (exclude EvilPlatform and WinningPlatform).
+    candidate_indices = [i for i, p in enumerate(platforms) if not isinstance(p, EvilPlatform) and not isinstance(p, WinningPlatform)]
     key_indices = random.sample(candidate_indices, 3)
     keys = []
     for idx in key_indices:
@@ -376,19 +422,32 @@ def new_game(wm):
     
     player = Player(0, 0, 0.1, model_loc)
 
+    # Arrow list: white triangular arrows.
+    arrows = []
+
     clock = pygame.time.Clock()
     running = True
 
     while running:
         dt = clock.tick(60) / 1000.0
 
+        # Spawn a new arrow with a small probability.
+        if random.random() < 0.02:
+            if random.choice([True, False]):
+                x_arrow = -1.1
+                vx = random.uniform(0.3, 0.6)
+            else:
+                x_arrow = 1.1
+                vx = -random.uniform(0.3, 0.6)
+            y_arrow = random.uniform(-0.8, 0.8)
+            arrow = Arrow(x_arrow, y_arrow, 0.1, 0.1, vx)
+            arrows.append(arrow)
+
         for event in pygame.event.get():
             if event.type == QUIT:
                 running = False
             elif event.type == KEYDOWN:
                 if event.key == K_SPACE:
-                    player.jump()
-                elif event.key == K_g:
                     player.flip_gravity()
 
         keys_pressed = pygame.key.get_pressed()
@@ -405,20 +464,28 @@ def new_game(wm):
 
         for plat in platforms:
             plat.update(dt)
-        # Check for key collection.
         for key in keys:
             if not key.collected:
-                # Simple collision: if distance between player center and key center is less than sum of radii.
                 key_x = key.platform.x + key.offset[0]
                 key_y = key.platform.y + key.offset[1]
                 dx = player.x - key_x
                 dy = player.y - key_y
-                distance = math.hypot(dx, dy)
-                if distance < (player.diameter/2 + key.size/2):
+                if math.hypot(dx, dy) < (player.diameter/2 + key.size/2):
                     key.collected = True
                     print("Key collected!")
         all_keys_collected = all(key.collected for key in keys)
         player.update(dt, platforms, all_keys_collected)
+
+        for arrow in arrows[:]:
+            arrow.update(dt)
+            if arrow.x < -1.2 or arrow.x > 1.2:
+                arrows.remove(arrow)
+            else:
+                if (abs(player.x - arrow.x) < (player.diameter/2 + arrow.width/2) and
+                    abs(player.y - arrow.y) < (player.diameter/2 + arrow.height/2)):
+                    player.take_damage(10)
+                    if arrow in arrows:
+                        arrows.remove(arrow)
 
         glViewport(0, 0, wm.width, wm.height)
         glClearColor(0.0, 0.0, 0.0, 1.0)
@@ -429,6 +496,8 @@ def new_game(wm):
             plat.draw()
         for key in keys:
             key.draw(model_loc)
+        for arrow in arrows:
+            arrow.draw(model_loc)
         player.draw()
 
         wm.swap_buffers()
@@ -438,5 +507,5 @@ def new_game(wm):
     sys.exit()
 
 if __name__ == "__main__":
-    wm = WindowManager(800, 600, "Keys & Winning Platform Example")
+    wm = WindowManager(800, 600, "Keys, Arrows & Winning Platform Example")
     new_game(wm)
