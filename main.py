@@ -35,6 +35,15 @@ def main():
         else:
             print("Invalid game mode selected.")
             sys.exit(1)
+    if selected_biome.lower() == "space":
+        from biomes.space import space
+        if game_mode.lower() == "new game":
+            space.new_game(wm)
+        elif game_mode.lower() == "load game":
+            space.load_game(wm)
+        else:
+            print("Invalid game mode selected.")
+            sys.exit(1)
     else:
         print("Biome not implemented. Exiting.")
         sys.exit(1)
