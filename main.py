@@ -27,7 +27,7 @@ def main():
     # Here we check for the River biome as an example.
     if selected_biome.lower() == "river":
         # Import the river module from the biomes package.
-        from biomes import river
+        from biomes.river import river
         if game_mode.lower() == "new game":
             river.new_game(wm)
         elif game_mode.lower() == "load game":
