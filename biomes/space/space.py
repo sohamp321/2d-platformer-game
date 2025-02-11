@@ -3,9 +3,9 @@ import pygame
 import numpy as np
 import math
 import ctypes
+import random
 from OpenGL.GL import *
 from pygame.locals import DOUBLEBUF, OPENGL, QUIT
-import random
 
 # Import your helper modules:
 from utils.window_manager import WindowManager
@@ -21,6 +21,8 @@ def new_game(wm):
       - 3 Normal Platforms.
       - 2 Evil Platforms.
     When the player is on the WinningPlatform and their top touches y>=1.0, they win.
+    The player starts with 3 lives. Touching an EvilPlatform causes loss of one life and a respawn.
+    On losing all lives, the game ends.
     The provided window manager (wm) is used.
     """
     # --- Helper Function ---
@@ -71,7 +73,7 @@ def new_game(wm):
             self.width = width
             self.height = height
             self.speed = speed
-            self.direction = 1  # 1 = moving upward; -1 = moving downward
+            self.direction = 1  # 1 = moving upward; -1 = moving downward.
             self.lower_bound = lower_bound
             self.upper_bound = upper_bound
             # Create a green rectangle.
@@ -79,7 +81,6 @@ def new_game(wm):
             self.vao, self.count = create_object(vertices, indices)
 
         def update(self, dt):
-            # Move vertically between lower_bound and upper_bound.
             self.y += self.speed * self.direction * dt
             if self.y > self.upper_bound or self.y < self.lower_bound:
                 self.direction *= -1
@@ -94,7 +95,7 @@ def new_game(wm):
     class EvilPlatform(Platform):
         def __init__(self, x, y, width, height, speed, lower_bound, upper_bound):
             """
-            An evil platform with spikes. Landing on it respawns the player.
+            An evil platform with spikes. Landing on it causes the player to lose a life.
             """
             super().__init__(x, y, width, height, speed, lower_bound, upper_bound)
             # Override base color to red.
@@ -111,7 +112,7 @@ def new_game(wm):
                 v1 = [spike_center_x - spike_base/2, self.height, 0]
                 v2 = [spike_center_x + spike_base/2, self.height, 0]
                 v3 = [spike_center_x, self.height + spike_height, 0]
-                spike_color = [1.0, 1.0, 1.0]  # White spikes.
+                spike_color = [1.0, 1.0, 1.0]
                 spike_vertices = [
                     v1[0], v1[1], v1[2], *spike_color,
                     v2[0], v2[1], v2[2], *spike_color,
@@ -119,7 +120,6 @@ def new_game(wm):
                 ]
                 spike_vertices = np.array(spike_vertices, dtype=np.float32)
                 spike_indices = np.array([0, 1, 2], dtype=np.uint32)
-                # Create VAO for spike.
                 vao_spike = glGenVertexArrays(1)
                 glBindVertexArray(vao_spike)
                 vbo_spike = glGenBuffers(1)
@@ -138,13 +138,12 @@ def new_game(wm):
                 self.spikes.append((vao_spike, len(spike_indices)))
 
         def draw(self):
-            # Draw base (red rectangle) and spikes.
             model = translation_matrix(self.x, self.y, 0)
             glUniformMatrix4fv(model_loc, 1, GL_TRUE, model)
             glBindVertexArray(self.vao)
             glDrawElements(GL_TRIANGLES, self.count, GL_UNSIGNED_INT, None)
             glBindVertexArray(0)
-            for (spike_vao, spike_count) in self.spikes:
+            for spike_vao, spike_count in self.spikes:
                 glBindVertexArray(spike_vao)
                 glDrawElements(GL_TRIANGLES, spike_count, GL_UNSIGNED_INT, None)
                 glBindVertexArray(0)
@@ -156,7 +155,6 @@ def new_game(wm):
             the top of the screen, they win.
             """
             super().__init__(x, y, width, height, speed, lower_bound, upper_bound)
-            # Override base color to blue.
             vertices, indices = create_rect(-width/2, 0, width, height, [0.0, 0.0, 1.0])
             self.vao, self.count = create_object(vertices, indices)
 
@@ -177,6 +175,8 @@ def new_game(wm):
             self.max_jumps = 2
             self.jumps_remaining = self.max_jumps
             self.on_ground = False
+            self.health = 100
+            self.lives = 3  # Player starts with 3 lives.
             vertices, indices = create_circle([0, 0, 0], diameter/2, [1.0, 0.0, 0.0], points=30)
             self.vao, self.count = create_object(vertices, indices)
 
@@ -195,7 +195,9 @@ def new_game(wm):
                     # Check collision for EvilPlatform first.
                     if isinstance(plat, EvilPlatform):
                         if abs(player_bottom - plat_top) < 0.02 and self.vy <= 0:
-                            self.respawn()
+                            self.lives -= 1
+                            if self.lives > 0:
+                                self.respawn()
                             return
                     else:
                         if abs(player_bottom - plat_top) < 0.02 and self.vy <= 0:
@@ -230,20 +232,19 @@ def new_game(wm):
             glBindVertexArray(0)
 
     # --- Create Game Objects (Level Design) ---
-    # Player: centered at (0, -0.8) with a diameter of 0.2.
+    # Player: centered at (0, -0.8) with a diameter of 0.1.
     player = Player(0, -0.8, 0.1)
-    # Level design: 6 platforms total.
+    # Level design: 6+ platforms total.
     platforms = [
         # 1 WinningPlatform (blue): placed on the right side; bottom at 0.75, height 0.25 so top=1.0.
         WinningPlatform(0.8, 0.75, 0.3, 0.05, speed=0.4, lower_bound=0.75, upper_bound=1.0),
-        # 3 Normal Platforms.
+        # 3 Normal Platforms (randomized).
         Platform(-0.8, -0.75, random.uniform(0.4, 0.6), 0.05, random.uniform(0.1, 0.2), lower_bound=-0.8, upper_bound=-0.6),
         Platform(-0.5, -0.5, random.uniform(0.4, 0.6), 0.05, random.uniform(0.1, 0.2), lower_bound=-0.5, upper_bound=-0.3),
         Platform(0, -0.2, random.uniform(0.4, 0.6), 0.05, random.uniform(0.1, 0.2), lower_bound=-0.2, upper_bound=0.0),
         Platform(0.5, 0.1, random.uniform(0.4, 0.6), 0.05, random.uniform(0.1, 0.2), lower_bound=0.1, upper_bound=0.3),
         Platform(0.7, 0.5, random.uniform(0.2, 0.3), 0.05, random.uniform(0.1, 0.2), lower_bound=0.1, upper_bound=0.6),
-        # 2 Evil Platforms.
-        
+        # 2 Evil Platforms (randomized).
         EvilPlatform(random.uniform(-0.8, -0.5), 0, 0.3, 0.05, random.uniform(0.2, 0.4), lower_bound=-0.5, upper_bound=0.2),
         EvilPlatform(0.3, 0.5, 0.3, 0.05, random.uniform(0.2, 0.4), lower_bound=-0.5, upper_bound=0.7)
     ]
@@ -281,8 +282,7 @@ def new_game(wm):
         for plat in platforms:
             plat.update(dt)
 
-        # Check win condition: if the player is on a WinningPlatform and
-        # their top (y + diameter/2) touches or exceeds the top of the screen (>=1.0).
+        # Check win condition: if the player is on a WinningPlatform and their top (y+diameter/2) >=1.0.
         for plat in platforms:
             if isinstance(plat, WinningPlatform):
                 plat_left = plat.x - plat.width/2
@@ -290,7 +290,6 @@ def new_game(wm):
                 plat_top = plat.y + plat.height
                 if (player.x + player.diameter/2 >= plat_left and
                     player.x - player.diameter/2 <= plat_right):
-                    # Check that the player is "standing" on the platform.
                     if abs((player.y - player.diameter/2) - plat_top) < 0.02:
                         if (player.y + player.diameter/2) >= 1.0:
                             game_won = True
@@ -308,6 +307,12 @@ def new_game(wm):
 
         if game_won:
             print("You Win!")
+            pygame.time.wait(2000)
+            running = False
+
+        # Check if lives are exhausted.
+        if player.lives <= 0:
+            print("Game Over!")
             pygame.time.wait(2000)
             running = False
 
