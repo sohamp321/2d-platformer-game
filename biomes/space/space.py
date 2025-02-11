@@ -162,6 +162,20 @@ def new_game(wm):
                 if event.key == pygame.K_SPACE:
                     player.jump()
 
+        # Introduce horizontal movement using A and D keys.
+        keys = pygame.key.get_pressed()
+        move_speed = 0.5  # Movement speed in normalized units per second.
+        if keys[pygame.K_a]:
+            player.x -= move_speed * dt
+        if keys[pygame.K_d]:
+            player.x += move_speed * dt
+
+        # Clamp the player's x position so it doesn't leave the screen.
+        if player.x - player.diameter/2 < -1:
+            player.x = -1 + player.diameter/2
+        if player.x + player.diameter/2 > 1:
+            player.x = 1 - player.diameter/2
+
         player.update(dt, platforms)
         for plat in platforms:
             plat.update(dt)
