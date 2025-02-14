@@ -142,8 +142,8 @@
 			"props": {
 				"color": "black",
 				"size": "m",
-				"w": 401.13543701171875,
-				"text": "TO-DO\n- adding a pause menu\n- game won screen\n- game over screen\n- add load game in upside down\n- add assets\n-- player\n-- platforms and all",
+				"w": 572.4479370117188,
+				"text": "TO-DO\n- adding a pause menu\n- integrate the end_screen in river and space\n- add load game in upside down\n- add assets\n-- player\n-- platforms and all",
 				"font": "draw",
 				"textAlign": "start",
 				"autoSize": true,
@@ -732,9 +732,9 @@
 		{
 			"id": "pointer:pointer",
 			"typeName": "pointer",
-			"x": 149.4105325840652,
-			"y": 2098.8807686822192,
-			"lastActivityTimestamp": 1739529324399,
+			"x": 1696.745631962703,
+			"y": 270.9003608589894,
+			"lastActivityTimestamp": 1739546047404,
 			"meta": {}
 		},
 		{
@@ -757,7 +757,7 @@
 				"x": 0,
 				"y": 0,
 				"w": 1387.3333740234375,
-				"h": 599.3333740234375
+				"h": 675.3333740234375
 			},
 			"insets": [
 				false,
@@ -785,10 +785,12 @@
 			"typeName": "instance"
 		},
 		{
-			"editingShapeId": null,
+			"editingShapeId": "shape:ieo_gCR4NHYIt8TYxLH7j",
 			"croppingShapeId": null,
-			"selectedShapeIds": [],
-			"hoveredShapeId": null,
+			"selectedShapeIds": [
+				"shape:ieo_gCR4NHYIt8TYxLH7j"
+			],
+			"hoveredShapeId": "shape:ieo_gCR4NHYIt8TYxLH7j",
 			"erasingShapeIds": [],
 			"hintingShapeIds": [],
 			"focusedGroupId": null,
@@ -798,9 +800,9 @@
 			"typeName": "instance_page_state"
 		},
 		{
-			"x": 820.8393201246772,
-			"y": -1464.8854520162986,
-			"z": 0.45005591682661245,
+			"x": -1291.1076353004003,
+			"y": -33.352081991681985,
+			"z": 1.4397073370968876,
 			"meta": {},
 			"id": "camera:page:page",
 			"typeName": "camera"

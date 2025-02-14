@@ -7,6 +7,9 @@ import random
 from OpenGL.GL import *
 from pygame.locals import DOUBLEBUF, OPENGL, QUIT, KEYDOWN, K_SPACE, K_g
 from src.end_screen import display_end_screen
+from src.game_launcher import start_game
+import json
+import os
 
 # Initialize pygame and font module.
 pygame.init()
@@ -17,6 +20,35 @@ hud_font = pygame.font.SysFont("Segoe UI Symbol", 24)
 from utils.window_manager import WindowManager
 from utils.graphics import Shader
 from assets.objects.objects import create_rect, create_circle, create_object
+
+CHECKPOINT_FILE = "saves/upside_down_checkpoint.json"
+
+
+def save_checkpoint(state):
+    """
+    Save the game state to disk.
+    'state' is a dictionary containing keys like:
+      - player: { 'x': ..., 'y': ..., 'lives': ..., 'health': ..., 'keys_collected': ... }
+      - platforms: a list of platform state dictionaries (positions, speeds, etc.)
+      - keys: a list of key state dictionaries (collected or not, positions, etc.)
+      - ... add other state as needed.
+    """
+    with open(CHECKPOINT_FILE, "w") as f:
+        json.dump(state, f)
+    print("Checkpoint saved.")
+
+def load_checkpoint():
+    """
+    Load the game state from disk.
+    Returns a dictionary with the game state.
+    """
+    if not os.path.exists(CHECKPOINT_FILE):
+        print("No checkpoint found.")
+        return None
+    with open(CHECKPOINT_FILE, "r") as f:
+        state = json.load(f)
+    print("Checkpoint loaded.")
+    return state
 
 # --- HUD Text Function ---
 def draw_text(text, font_obj, pos_x, pos_y):
@@ -227,6 +259,7 @@ class Player:
         self.health = 100
         self.max_health = 100
         self.damage_cooldown = 0.0
+        self.won = False  # Flag to indicate winning condition
         vertices, indices = create_circle([0, 0, 0], diameter/2, [1.0, 0.0, 0.0], points=30)
         self.vao, self.count = create_object(vertices, indices)
         self.model_loc = model_loc
@@ -265,7 +298,8 @@ class Player:
                         if abs(player_bottom - plat_top) < 0.02 and self.vy <= 0:
                             if all_keys_collected:
                                 print("You win!")
-                                sys.exit()
+                                self.won = True
+                                return
                             else:
                                 self.y = plat_top + self.diameter/2
                                 self.vy = 0
@@ -277,7 +311,8 @@ class Player:
                         if abs(player_top - plat_bottom) < 0.02 and self.vy >= 0:
                             if all_keys_collected:
                                 print("You win!")
-                                sys.exit()
+                                self.won = True
+                                return
                             else:
                                 self.y = plat_bottom - self.diameter/2
                                 self.vy = 0
@@ -318,6 +353,7 @@ class Player:
                             self.on_ground = True
                             self.jumps_remaining = self.max_jumps
 
+        # Keep player within vertical bounds
         if self.gravity_direction == -1 and self.y - self.diameter/2 < -1:
             self.y = -1 + self.diameter/2
             self.vy = 0
@@ -357,14 +393,10 @@ class Player:
 # --- Main Game Function ---
 def new_game(wm):
     """
-    Creates a world with 10 moving platforms (5 bottom, 5 top) and a player.
-    Every alternating platform is evil (with spikes); for top evil platforms, spikes are rendered on the bottom.
-    The bottom right platform is the winning platform.
-    Three keys are placed on randomly selected non-evil, non-winning platforms.
-    White triangular arrows randomly spawn and move horizontally.
-    If an arrow touches the player, 10 health is deducted.
-    The player only wins if all keys are collected and the winning platform is landed on.
-    Press SPACE to jump and G to flip gravity.
+    Creates a world with platforms, keys, and enemies.
+    The player wins if all keys are collected and lands on the winning platform.
+    If the player loses all lives, the game is over.
+    After a win or game over, the end screen is displayed.
     """
     vertex_src = """
     #version 330 core
@@ -420,9 +452,9 @@ def new_game(wm):
     player = Player(0, 0, 0.1, model_loc)
 
     arrows = []
-
     clock = pygame.time.Clock()
     running = True
+    game_result = None  # "win" or "lose"
 
     while running:
         dt = clock.tick(60) / 1000.0
@@ -442,13 +474,14 @@ def new_game(wm):
         for event in pygame.event.get():
             if event.type == QUIT:
                 running = False
+                game_result = None
             elif event.type == KEYDOWN:
                 if event.key == K_SPACE:
                     player.flip_gravity()
+                # You can uncomment the next line if you wish to allow jumping with G
                 # elif event.key == K_g:
                 #     player.jump()
                     
-
         keys_pressed = pygame.key.get_pressed()
         move_speed = 0.5
         if keys_pressed[pygame.K_a]:
@@ -456,6 +489,7 @@ def new_game(wm):
         if keys_pressed[pygame.K_d]:
             player.x += move_speed * dt
 
+        # Keep player within horizontal bounds.
         if player.x - player.diameter/2 < -1:
             player.x = -1 + player.diameter/2
         if player.x + player.diameter/2 > 1:
@@ -473,7 +507,17 @@ def new_game(wm):
                     key.collected = True
                     print("Key collected!")
         all_keys_collected = all(key.collected for key in keys)
+
         player.update(dt, platforms, all_keys_collected)
+        # Check for win condition.
+        if player.won:
+            game_result = "win"
+            running = False
+
+        # Check for loss condition.
+        if player.lives <= 0:
+            game_result = "lose"
+            running = False
 
         for arrow in arrows[:]:
             arrow.update(dt)
@@ -534,9 +578,24 @@ def new_game(wm):
 
         wm.swap_buffers()
 
-    wm.quit()
-    pygame.quit()
-    sys.exit()
+    # End of game loop.
+    # If game_result is set to win or lose, display the end screen.
+    if game_result in ("win", "lose"):
+        # The 'won' parameter is True if the player won, False if they lost.
+        option = display_end_screen(wm, won=(game_result == "win"))
+        print("User selected:", option)
+        if option == "New Game":
+            new_game(wm)
+        elif option == "Select Biome":
+            start_game(wm)
+        else:
+            wm.quit()
+            pygame.quit()
+            sys.exit()
+    else:
+        wm.quit()
+        pygame.quit()
+        sys.exit()
 
 if __name__ == "__main__":
     wm = WindowManager(800, 600, "Keys, Arrows & Winning Platform Example")
