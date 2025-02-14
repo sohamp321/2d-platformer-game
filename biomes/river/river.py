@@ -32,9 +32,9 @@ def translation_matrix(x, y, z):
         [0, 0, 0, 1]
     ], dtype=np.float32)
 
-def draw_text(text, font_obj, pos_x, pos_y):
+def draw_text(text, font_obj, pos_x, pos_y, color=(255, 255, 255)):
     """Renders text onto a texture and draws it as a quad with its bottom-left corner at (pos_x, pos_y)."""
-    text_surface = font_obj.render(text, True, (255, 255, 255)).convert_alpha()
+    text_surface = font_obj.render(text, True, color).convert_alpha()
     text_width, text_height = text_surface.get_size()
     text_data = pygame.image.tostring(text_surface, 'RGBA', True)
 
@@ -172,11 +172,10 @@ def initialize_game_state(state_data, model_loc):
                 waves[i].width = d.get("width", waves[i].width)
                 waves[i].height = d.get("height", waves[i].height)
     
-    # Create keys: each key is tied to a lily pad. We'll create keys as dictionaries.
+    # Create keys: each key is tied to a lily pad.
     key_size = 0.03
     from assets.objects.objects import create_square
     keys = []
-    # For a new game, randomly select 3 lily pads:
     if not state_data:
         selected_lily_pads = random.sample(lily_pads, 3)
         for lp in selected_lily_pads:
@@ -184,7 +183,6 @@ def initialize_game_state(state_data, model_loc):
             key_vao, key_count = create_object(key_vertices, key_indices)
             keys.append({'vao': key_vao, 'count': key_count, 'lily_pad': lp, 'collected': False})
     else:
-        # Recreate keys (we assume same number: 3) then update collected flag from checkpoint.
         selected_lily_pads = random.sample(lily_pads, 3)
         for lp in selected_lily_pads:
             key_vertices, key_indices = create_square([0,0,0], key_size, [1.0,1.0,0.0])
@@ -195,10 +193,9 @@ def initialize_game_state(state_data, model_loc):
             if i < len(keys):
                 keys[i]['collected'] = d.get("collected", False)
     
-    # Return all dynamic assets
     return {"player": player, "lily_pads": lily_pads, "waves": waves, "keys": keys, "lives": lives, "health": health}
 
-# --- Game Loop ---
+# --- Game Loop with Integrated Pause Menu ---
 def run_game_loop(wm, assets, modelLoc, shader_program):
     hud_font = pygame.font.SysFont("Arial", 24)
     # Unpack assets
@@ -241,6 +238,11 @@ def run_game_loop(wm, assets, modelLoc, shader_program):
     
     width, height_screen = wm.width, wm.height
 
+    # ---- Pause Menu Variables ----
+    paused = False
+    pause_options = ["New Game", "Load Game", "Select Biome", "Exit"]
+    pause_selected = 0
+
     running = True
     while running:
         dt = clock.tick(60) / 1000.0
@@ -249,120 +251,145 @@ def run_game_loop(wm, assets, modelLoc, shader_program):
         for event in pygame.event.get():
             if event.type == QUIT:
                 running = False
-            elif event.type == pygame.KEYDOWN:
-                if event.key == pygame.K_SPACE and not is_jumping:
-                    is_jumping = True
-                    jump_time = 0
-                elif event.key == pygame.K_F5:
+            elif event.type == KEYDOWN:
+                if paused:
+                    # Process pause menu navigation
+                    if event.key == pygame.K_ESCAPE:
+                        paused = False  # Resume game
+                    elif event.key == pygame.K_UP:
+                        pause_selected = (pause_selected - 1) % len(pause_options)
+                    elif event.key == pygame.K_DOWN:
+                        pause_selected = (pause_selected + 1) % len(pause_options)
+                    elif event.key == pygame.K_RETURN:
+                        option = pause_options[pause_selected]
+                        if option == "New Game":
+                            new_game(wm)
+                        elif option == "Load Game":
+                            load_game(wm)
+                        elif option == "Select Biome":
+                            start_game(wm)
+                        elif option == "Exit":
+                            wm.quit()
+                            pygame.font.quit()
+                            pygame.quit()
+                            sys.exit()
+                else:
+                    # Normal game input
+                    if event.key == pygame.K_SPACE and not is_jumping:
+                        is_jumping = True
+                        jump_time = 0
+                    elif event.key == pygame.K_F5:
+                        collected_count = sum(1 for k in keys if k['collected'])
+                        save_checkpoint(lives, health, collected_count, waves, lily_pads, keys)
+                    elif event.key == pygame.K_F9:
+                        try:
+                            data = load_checkpoint_data()
+                            lives = data.get("lives", lives)
+                            health = data.get("health", health)
+                            keys_data = data.get("keys", [])
+                            for i, d in enumerate(keys_data):
+                                if i < len(keys):
+                                    keys[i]['collected'] = d.get("collected", keys[i]['collected'])
+                            print("Checkpoint loaded.")
+                        except Exception as e:
+                            print("Error loading checkpoint:", e)
+                    elif event.key == pygame.K_ESCAPE:
+                        paused = True
+
+        if not paused:
+            # Movement input
+            keys_pressed = pygame.key.get_pressed()
+            move_speed = 0.8 * (0.5 if is_jumping else 1)
+            if keys_pressed[pygame.K_a]:
+                player_pos[0] -= move_speed * dt
+            if keys_pressed[pygame.K_d]:
+                player_pos[0] += move_speed * dt
+            if keys_pressed[pygame.K_w]:
+                player_pos[1] += move_speed * dt
+            if keys_pressed[pygame.K_s]:
+                player_pos[1] -= move_speed * dt
+
+            # Start jump if active
+            if is_jumping:
+                jump_time += 1
+                t = jump_time / jump_duration
+                jump_offset = jump_height * 4 * t * (1 - t)
+                if jump_time >= jump_duration:
+                    is_jumping = False
+            else:
+                jump_offset = 0
+
+            # Update blinking if under health cooldown
+            if health_cooldown > 0:
+                health_cooldown -= dt
+                blink_timer += dt
+                if blink_timer >= blink_interval:
+                    player_visible = not player_visible
+                    blink_timer = 0
+            else:
+                player_visible = True
+
+            # Clamp player position
+            player_pos[0] = max(-1.0, min(1.0, player_pos[0]))
+            player_pos[1] = max(-1.0, min(1.0, player_pos[1]))
+            effective_y = player_pos[1] + jump_offset
+
+            # Update waves
+            for wave in waves:
+                wave.update(dt)
+                if wave.collides_with_player(player_pos[0], effective_y) and health_cooldown <= 0:
+                    health -= 5
                     collected_count = sum(1 for k in keys if k['collected'])
                     save_checkpoint(lives, health, collected_count, waves, lily_pads, keys)
-                elif event.key == pygame.K_F9:
-                    try:
-                        data = load_checkpoint_data()
-                        lives = data.get("lives", lives)
-                        health = data.get("health", health)
-                        # Update waves and lily pads if needed…
-                        keys_data = data.get("keys", [])
-                        for i, d in enumerate(keys_data):
-                            if i < len(keys):
-                                keys[i]['collected'] = d.get("collected", keys[i]['collected'])
-                        print("Checkpoint loaded.")
-                    except Exception as e:
-                        print("Error loading checkpoint:", e)
-        
-        # Movement input
-        keys_pressed = pygame.key.get_pressed()
-        move_speed = 0.8 * (0.5 if is_jumping else 1)
-        if keys_pressed[pygame.K_a]:
-            player_pos[0] -= move_speed * dt
-        if keys_pressed[pygame.K_d]:
-            player_pos[0] += move_speed * dt
-        if keys_pressed[pygame.K_w]:
-            player_pos[1] += move_speed * dt
-        if keys_pressed[pygame.K_s]:
-            player_pos[1] -= move_speed * dt
+                    health_cooldown = 0.5
+                    if health <= 0:
+                        lives -= 1
+                        collected_count = sum(1 for k in keys if k['collected'])
+                        save_checkpoint(lives, health, collected_count, waves, lily_pads, keys)
+                        if lives <= 0:
+                            game_over = True
+                        else:
+                            player_pos = [-0.8, 0.0, 0.0]
+                            health = 100
 
-        # Start jump if active
-        if is_jumping:
-            jump_time += 1
-            t = jump_time / jump_duration
-            jump_offset = jump_height * 4 * t * (1 - t)
-            if jump_time >= jump_duration:
-                is_jumping = False
-        else:
-            jump_offset = 0
-
-        # Update blinking if under health cooldown
-        if health_cooldown > 0:
-            health_cooldown -= dt
-            blink_timer += dt
-            if blink_timer >= blink_interval:
-                player_visible = not player_visible
-                blink_timer = 0
-        else:
-            player_visible = True
-
-        # Clamp player position
-        player_pos[0] = max(-1.0, min(1.0, player_pos[0]))
-        player_pos[1] = max(-1.0, min(1.0, player_pos[1]))
-        effective_y = player_pos[1] + jump_offset
-
-        # Update waves
-        for wave in waves:
-            wave.update(dt)
-            if wave.collides_with_player(player_pos[0], effective_y) and health_cooldown <= 0:
-                health -= 5
-                collected_count = sum(1 for k in keys if k['collected'])
-                save_checkpoint(lives, health, collected_count, waves, lily_pads, keys)
-                health_cooldown = 0.5
-                if health <= 0:
+            # Check for lily pad collisions and key collection
+            if -0.7 <= player_pos[0] <= 0.7:
+                on_lily_pad = False
+                for lp in lily_pads:
+                    distance = np.sqrt((player_pos[0] - lp.pos[0])**2 + ((effective_y) - lp.pos[1]*2)**2)
+                    if distance < 0.15:
+                        on_lily_pad = True
+                        for key in keys:
+                            if not key['collected'] and key['lily_pad'] == lp:
+                                if distance < 0.1:
+                                    key['collected'] = True
+                                    collected_count = sum(1 for k in keys if k['collected'])
+                                    save_checkpoint(lives, health, collected_count, waves, lily_pads, keys)
+                        break
+                if not on_lily_pad and not is_jumping:
                     lives -= 1
                     collected_count = sum(1 for k in keys if k['collected'])
                     save_checkpoint(lives, health, collected_count, waves, lily_pads, keys)
                     if lives <= 0:
                         game_over = True
+                        collected_count = sum(1 for k in keys if k['collected'])
+                        save_checkpoint(lives, health, collected_count, waves, lily_pads, keys)
                     else:
                         player_pos = [-0.8, 0.0, 0.0]
-                        health = 100
 
-        # Check for lily pad collisions and key collection
-        if -0.7 <= player_pos[0] <= 0.7:
-            on_lily_pad = False
-            for lp in lily_pads:
-                distance = np.sqrt((player_pos[0] - lp.pos[0])**2 + ((effective_y) - lp.pos[1]*2)**2)
-                if distance < 0.15:
-                    on_lily_pad = True
-                    for key in keys:
-                        if not key['collected'] and key['lily_pad'] == lp:
-                            if distance < 0.1:
-                                key['collected'] = True
-                                collected_count = sum(1 for k in keys if k['collected'])
-                                save_checkpoint(lives, health, collected_count, waves, lily_pads, keys)
-                    break
-            if not on_lily_pad and not is_jumping:
-                lives -= 1
-                collected_count = sum(1 for k in keys if k['collected'])
-                save_checkpoint(lives, health, collected_count, waves, lily_pads, keys)
-                if lives <= 0:
-                    game_over = True
-                    collected_count = sum(1 for k in keys if k['collected'])
-                    save_checkpoint(lives, health, collected_count, waves, lily_pads, keys)
+            # Check win condition: if player reaches right side and all keys are collected.
+            if player_pos[0] > 0.7:
+                all_keys_collected = all(key['collected'] for key in keys)
+                if all_keys_collected:
+                    running = False
+                    with open("saves/river_checkpoint.txt", "w") as file:
+                        file.write("")
                 else:
-                    player_pos = [-0.8, 0.0, 0.0]
+                    player_pos[0] = min(0.75, player_pos[0])
 
-        # Check win condition: if player reaches the right side and all keys are collected.
-        if player_pos[0] > 0.7:
-            all_keys_collected = all(key['collected'] for key in keys)
-            if all_keys_collected:
-                running = False
-                with open("saves/river_checkpoint.txt", "w") as file:
-                    file.write("")
-            else:
-                player_pos[0] = min(0.75, player_pos[0])
-        
-        # Update lily pads
-        for lp in lily_pads:
-            lp.update(dt)
+            # Update lily pads
+            for lp in lily_pads:
+                lp.update(dt)
         
         # --- Render Background ---
         glViewport(0, 0, width, height_screen)
@@ -462,20 +489,44 @@ def run_game_loop(wm, assets, modelLoc, shader_program):
             prompt = "Collect all the keys to complete biome"
             prompt_width, _ = hud_font.size(prompt)
             draw_text(prompt, hud_font, (width - prompt_width) // 2, 20)
-        # if game_over:
-        #     over_msg = "Game Over"
-        #     over_width, _ = hud_font.size(over_msg)
-        #     draw_text(over_msg, hud_font, (width - over_width) // 2, height_screen // 2)
         
         glPopMatrix()
         glMatrixMode(GL_PROJECTION)
         glPopMatrix()
         glMatrixMode(GL_MODELVIEW)
         
+        # --- Render Pause Menu Overlay if Paused ---
+        if paused:
+            glViewport(0, 0, width, height_screen)
+            glMatrixMode(GL_PROJECTION)
+            glPushMatrix()
+            glLoadIdentity()
+            glOrtho(0, width, 0, height_screen, -1, 1)
+            glMatrixMode(GL_MODELVIEW)
+            glPushMatrix()
+            glLoadIdentity()
+            glColor4f(0, 0, 0, 0.7)
+            glBegin(GL_QUADS)
+            glVertex2f(0, 0)
+            glVertex2f(width, 0)
+            glVertex2f(width, height_screen)
+            glVertex2f(0, height_screen)
+            glEnd()
+            glColor4f(1, 1, 1, 1)
+            draw_text("Paused", hud_font, width//2 - 50, height_screen - 200)
+            for i, option in enumerate(pause_options):
+                opt_color = (255, 255, 255)
+                if i == pause_selected:
+                    opt_color = (255, 0, 0)
+                draw_text(option, hud_font, width//2 - 50, height_screen - 250 - i * 30, opt_color)
+            glPopMatrix()
+            glMatrixMode(GL_PROJECTION)
+            glPopMatrix()
+            glMatrixMode(GL_MODELVIEW)
+        
         wm.swap_buffers()
         
         if game_over:
-            # pygame.time.wait(2000)
             running = False
         
     # End of game loop: clear checkpoint on win
@@ -483,7 +534,6 @@ def run_game_loop(wm, assets, modelLoc, shader_program):
         with open("saves/river_checkpoint.txt", "w") as file:
             file.write("")
     
-    # Show end screen
     option = display_end_screen(wm, won=(not game_over))
     print("User selected:", option)
     if option == "New Game":
@@ -531,7 +581,6 @@ def load_game(wm):
 if __name__ == "__main__":
     pygame.init()
     wm = WindowManager(800,600,"River Biome")
-    # To start a new game:
     new_game(wm)
-    # To load from checkpoint instead, you can call:
+    # To load a saved checkpoint instead, call:
     # load_game(wm)
