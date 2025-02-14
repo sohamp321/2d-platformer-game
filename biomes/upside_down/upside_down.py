@@ -6,6 +6,7 @@ import ctypes
 import random
 from OpenGL.GL import *
 from pygame.locals import DOUBLEBUF, OPENGL, QUIT, KEYDOWN, K_SPACE, K_g
+from src.end_screen import display_end_screen
 
 # Initialize pygame and font module.
 pygame.init()
@@ -443,9 +444,10 @@ def new_game(wm):
                 running = False
             elif event.type == KEYDOWN:
                 if event.key == K_SPACE:
-                    player.jump()
-                elif event.key == K_g:
                     player.flip_gravity()
+                # elif event.key == K_g:
+                #     player.jump()
+                    
 
         keys_pressed = pygame.key.get_pressed()
         move_speed = 0.5
