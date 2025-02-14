@@ -18,9 +18,9 @@ from utils.graphics import Shader
 from assets.objects.objects import create_rect, create_circle, create_object
 
 # --- HUD Text Function ---
-def draw_text(text, font_obj, pos_x, pos_y):
+def draw_text(text, font_obj, pos_x, pos_y, color=(255, 255, 255)):
     """Renders text onto a texture and draws it as a quad with its bottom-left corner at (pos_x, pos_y)."""
-    text_surface = font_obj.render(text, True, (255, 255, 255)).convert_alpha()
+    text_surface = font_obj.render(text, True, color).convert_alpha()
     text_width, text_height = text_surface.get_size()
     text_data = pygame.image.tostring(text_surface, 'RGBA', True)
 
@@ -347,7 +347,7 @@ def initialize_game_state(state_data, model_loc):
                 key.collected = cp_keys[i].get("collected", False)
     return {"player": player, "platforms": platforms, "keys": keys}
 
-# --- Game Loop ---
+# --- Game Loop with Integrated Pause Menu ---
 def run_game_loop(wm, assets, model_loc, shader):
     player = assets["player"]
     platforms = assets["platforms"]
@@ -359,87 +359,119 @@ def run_game_loop(wm, assets, model_loc, shader):
     game_won = False
     hud_font = pygame.font.SysFont("Arial", 24)
 
+    # Pause menu variables
+    paused = False
+    pause_options = ["New Game", "Load Game", "Select Biome", "Exit"]
+    pause_selected = 0
+
     while running:
         dt = clock.tick(60) / 1000.0
 
-        # Spawn asteroids
-        asteroid_spawn_timer -= dt
-        if asteroid_spawn_timer <= 0:
-            spawn_y = random.uniform(-0.9, 0.9)
-            spawn_x = 1.1
-            radius = random.uniform(0.03, 0.07)
-            vx = -random.uniform(0.1, 0.3)
-            asteroids.append(Asteroid(spawn_x, spawn_y, radius, vx, model_loc))
-            asteroid_spawn_timer = random.uniform(1.0, 3.0)
-
+        # Process events
         for event in pygame.event.get():
             if event.type == QUIT:
                 running = False
-            elif event.type == pygame.KEYDOWN:
-                if event.key == pygame.K_SPACE:
-                    player.jump()
-                elif event.key == pygame.K_F5:
-                    save_checkpoint(player, platforms, keys)
-                elif event.key == pygame.K_F9:
-                    try:
-                        data = load_checkpoint_data()
-                        player.lives = data["player"]["lives"]
-                        player.health = data["player"]["health"]
-                        for i, plat in enumerate(platforms):
-                            plat.width = data["platforms"][i]["width"]
-                            plat.speed = data["platforms"][i]["speed"]
-                        for i, key in enumerate(keys):
-                            key.collected = data["keys"][i]["collected"]
-                        print("Checkpoint loaded.")
-                    except Exception as e:
-                        print("Error loading checkpoint:", e)
+            elif event.type == KEYDOWN:
+                if paused:
+                    # Process pause menu navigation
+                    if event.key == pygame.K_ESCAPE:
+                        paused = False  # Resume game
+                    elif event.key == pygame.K_UP:
+                        pause_selected = (pause_selected - 1) % len(pause_options)
+                    elif event.key == pygame.K_DOWN:
+                        pause_selected = (pause_selected + 1) % len(pause_options)
+                    elif event.key == pygame.K_RETURN:
+                        option = pause_options[pause_selected]
+                        if option == "New Game":
+                            new_game(wm)
+                        elif option == "Load Game":
+                            load_game(wm)
+                        elif option == "Select Biome":
+                            start_game(wm)
+                        elif option == "Exit":
+                            wm.quit()
+                            pygame.font.quit()
+                            pygame.quit()
+                            sys.exit()
+                else:
+                    # Normal game input
+                    if event.key == pygame.K_SPACE:
+                        player.jump()
+                    elif event.key == pygame.K_F5:
+                        save_checkpoint(player, platforms, keys)
+                    elif event.key == pygame.K_F9:
+                        try:
+                            data = load_checkpoint_data()
+                            player.lives = data["player"]["lives"]
+                            player.health = data["player"]["health"]
+                            for i, plat in enumerate(platforms):
+                                plat.width = data["platforms"][i]["width"]
+                                plat.speed = data["platforms"][i]["speed"]
+                            for i, key in enumerate(keys):
+                                key.collected = data["keys"][i]["collected"]
+                            print("Checkpoint loaded.")
+                        except Exception as e:
+                            print("Error loading checkpoint:", e)
+                    elif event.key == pygame.K_ESCAPE:
+                        paused = True
 
-        keys_pressed = pygame.key.get_pressed()
-        move_speed = 0.5
-        if keys_pressed[pygame.K_a]:
-            player.x -= move_speed * dt
-        if keys_pressed[pygame.K_d]:
-            player.x += move_speed * dt
-        if player.x - player.diameter/2 < -1:
-            player.x = -1 + player.diameter/2
-        if player.x + player.diameter/2 > 1:
-            player.x = 1 - player.diameter/2
+        # When not paused, update game objects
+        if not paused:
+            # Asteroid spawning
+            asteroid_spawn_timer -= dt
+            if asteroid_spawn_timer <= 0:
+                spawn_y = random.uniform(-0.9, 0.9)
+                spawn_x = 1.1
+                radius = random.uniform(0.03, 0.07)
+                vx = -random.uniform(0.1, 0.3)
+                asteroids.append(Asteroid(spawn_x, spawn_y, radius, vx, model_loc))
+                asteroid_spawn_timer = random.uniform(1.0, 3.0)
 
-        player.update(dt, platforms)
-        for plat in platforms:
-            plat.update(dt)
-        for key in keys:
-            if not key.collected:
-                key_center_x = key.platform.x + key.offset_x
-                key_center_y = key.platform.y + key.offset_y
-                dx = player.x - key_center_x
-                dy = player.y - key_center_y
-                if math.sqrt(dx*dx + dy*dy) < (player.diameter/2 + key.size/2):
-                    key.collected = True
-                    save_checkpoint(player, platforms, keys)
+            keys_pressed = pygame.key.get_pressed()
+            move_speed = 0.5
+            if keys_pressed[pygame.K_a]:
+                player.x -= move_speed * dt
+            if keys_pressed[pygame.K_d]:
+                player.x += move_speed * dt
+            if player.x - player.diameter/2 < -1:
+                player.x = -1 + player.diameter/2
+            if player.x + player.diameter/2 > 1:
+                player.x = 1 - player.diameter/2
 
-        for asteroid in asteroids[:]:
-            asteroid.update(dt)
-            if asteroid.x + asteroid.radius < -1:
-                asteroids.remove(asteroid)
-            else:
-                dx = player.x - asteroid.x
-                dy = player.y - asteroid.y
-                if math.sqrt(dx*dx + dy*dy) < (player.diameter/2 + asteroid.radius):
-                    player.take_damage(10)
-                    if asteroid in asteroids:
-                        asteroids.remove(asteroid)
+            player.update(dt, platforms)
+            for plat in platforms:
+                plat.update(dt)
+            for key in keys:
+                if not key.collected:
+                    key_center_x = key.platform.x + key.offset_x
+                    key_center_y = key.platform.y + key.offset_y
+                    dx = player.x - key_center_x
+                    dy = player.y - key_center_y
+                    if math.sqrt(dx*dx + dy*dy) < (player.diameter/2 + key.size/2):
+                        key.collected = True
+                        save_checkpoint(player, platforms, keys)
+            for asteroid in asteroids[:]:
+                asteroid.update(dt)
+                if asteroid.x + asteroid.radius < -1:
+                    asteroids.remove(asteroid)
+                else:
+                    dx = player.x - asteroid.x
+                    dy = player.y - asteroid.y
+                    if math.sqrt(dx*dx + dy*dy) < (player.diameter/2 + asteroid.radius):
+                        player.take_damage(10)
+                        if asteroid in asteroids:
+                            asteroids.remove(asteroid)
 
-        # Check win condition:
-        all_keys_collected = all(key.collected for key in keys)
-        for plat in platforms:
-            if isinstance(plat, WinningPlatform) and all_keys_collected:
-                plat_left = plat.x - plat.width/2
-                plat_right = plat.x + plat.width/2
-                plat_top = plat.y + plat.height
-                if (player.x + player.diameter/2 >= plat_left and player.x - player.diameter/2 <= plat_right):
-                    if abs((player.y - player.diameter/2) - plat_top) < 0.02 and (player.y + player.diameter/2) >= 1.0:
-                        game_won = True
+            # Check win condition
+            all_keys_collected = all(key.collected for key in keys)
+            for plat in platforms:
+                if isinstance(plat, WinningPlatform) and all_keys_collected:
+                    plat_left = plat.x - plat.width/2
+                    plat_right = plat.x + plat.width/2
+                    plat_top = plat.y + plat.height
+                    if (player.x + player.diameter/2 >= plat_left and player.x - player.diameter/2 <= plat_right):
+                        if abs((player.y - player.diameter/2) - plat_top) < 0.02 and (player.y + player.diameter/2) >= 1.0:
+                            game_won = True
 
         # --- Render Background ---
         glUseProgram(0)
@@ -511,12 +543,43 @@ def run_game_loop(wm, assets, model_loc, shader):
         glPopMatrix()
         glMatrixMode(GL_MODELVIEW)
 
+        # --- If Paused, Render Pause Menu Overlay ---
+        if paused:
+            # Draw a semi-transparent overlay over the entire screen.
+            glViewport(0, 0, wm.width, wm.height)
+            glMatrixMode(GL_PROJECTION)
+            glPushMatrix()
+            glLoadIdentity()
+            glOrtho(0, wm.width, 0, wm.height, -1, 1)
+            glMatrixMode(GL_MODELVIEW)
+            glPushMatrix()
+            glLoadIdentity()
+            glColor4f(0, 0, 0, 0.7)
+            glBegin(GL_QUADS)
+            glVertex2f(0, 0)
+            glVertex2f(wm.width, 0)
+            glVertex2f(wm.width, wm.height)
+            glVertex2f(0, wm.height)
+            glEnd()
+            glColor4f(1, 1, 1, 1)
+            # Draw pause menu title.
+            draw_text("Paused", hud_font, wm.width//2 - 50, wm.height - 200)
+            # Draw each menu option with color.
+            for i, option in enumerate(pause_options):
+                opt_color = (255, 255, 255)
+                if i == pause_selected:
+                    opt_color = (255, 0, 0)
+                draw_text(option, hud_font, wm.width//2 - 50, wm.height - 250 - i * 30, opt_color)
+            glPopMatrix()
+            glMatrixMode(GL_PROJECTION)
+            glPopMatrix()
+            glMatrixMode(GL_MODELVIEW)
+
         wm.swap_buffers()
 
         if game_won:
             print("You Win!")
             running = False
-
         if player.lives <= 0:
             print("Game Over!")
             running = False
@@ -525,10 +588,10 @@ def run_game_loop(wm, assets, model_loc, shader):
     option = display_end_screen(wm, won=game_won)
     print("User selected:", option)
     if option == "New Game":
-        save_checkpoint(None, [], [])
+        save_checkpoint(player, [], [])
         new_game(wm)
     elif option == "Select Biome":
-        save_checkpoint(None, [], [])
+        save_checkpoint(player, [], [])
         start_game(wm)  # Calls the launcher to select a new biome/game mode
     else:
         wm.quit()

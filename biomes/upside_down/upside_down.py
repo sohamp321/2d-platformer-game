@@ -353,6 +353,7 @@ class Player:
         glBindVertexArray(self.vao)
         glDrawElements(GL_TRIANGLES, self.count, GL_UNSIGNED_INT, None)
         glBindVertexArray(0)
+                
 
 # --- Game State Initialization ---
 def initialize_game_state(state_data, model_loc):
