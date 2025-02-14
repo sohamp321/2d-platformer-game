@@ -7,10 +7,10 @@ import random
 import json
 import os
 from OpenGL.GL import *
-from pygame.locals import DOUBLEBUF, OPENGL, QUIT, KEYDOWN, K_SPACE, K_g
+from pygame.locals import DOUBLEBUF, OPENGL, QUIT, KEYDOWN, K_SPACE
 
 from src.end_screen import display_end_screen
-from src.game_launcher import start_game  # This now comes from a separate module to avoid circular imports
+from src.game_launcher import start_game  # Avoid circular imports
 
 # Initialize pygame and the font module.
 pygame.init()
@@ -25,6 +25,11 @@ from assets.objects.objects import create_rect, create_circle, create_object
 CHECKPOINT_FILE = "saves/upside_down_checkpoint.json"
 
 def save_checkpoint(state):
+    if state is None:
+        if os.path.exists(CHECKPOINT_FILE):
+            os.remove(CHECKPOINT_FILE)
+        print("Checkpoint cleared.")
+        return
     with open(CHECKPOINT_FILE, "w") as f:
         json.dump(state, f)
     print("Checkpoint saved.")
@@ -402,7 +407,7 @@ def initialize_game_state(state_data, model_loc):
             keys.append(k)
     return {"player": player, "platforms": platforms, "keys": keys}
 
-# --- Game Loop Function ---
+# --- Game Loop Function with Integrated Pause Menu ---
 def run_game_loop(wm, assets, model_loc, shader):
     player = assets["player"]
     platforms = assets["platforms"]
@@ -411,95 +416,136 @@ def run_game_loop(wm, assets, model_loc, shader):
     clock = pygame.time.Clock()
     running = True
     game_result = None  # "win" or "lose"
+
+    # Pause menu variables.
+    paused = False
+    pause_options = ["New Game", "Load Game", "Select Biome", "Exit"]
+    pause_selected = 0
+
     while running:
         dt = clock.tick(60) / 1000.0
-        if random.random() < 0.02:
-            if random.choice([True, False]):
-                x_arrow = -1.1
-                vx = random.uniform(0.3, 0.6)
-            else:
-                x_arrow = 1.1
-                vx = -random.uniform(0.3, 0.6)
-            y_arrow = random.uniform(-0.8, 0.8)
-            arrow = Arrow(x_arrow, y_arrow, 0.1, 0.1, vx)
-            arrows.append(arrow)
+        
+        # Process events.
         for event in pygame.event.get():
             if event.type == QUIT:
                 running = False
                 game_result = None
             elif event.type == KEYDOWN:
-                if event.key == K_SPACE:
-                    player.flip_gravity()
-        keys_pressed = pygame.key.get_pressed()
-        move_speed = 0.5
-        if keys_pressed[pygame.K_a]:
-            player.x -= move_speed * dt
-        if keys_pressed[pygame.K_d]:
-            player.x += move_speed * dt
-        if player.x - player.diameter/2 < -1:
-            player.x = -1 + player.diameter/2
-        if player.x + player.diameter/2 > 1:
-            player.x = 1 - player.diameter/2
-        for plat in platforms:
-            plat.update(dt)
-        for key in keys:
-            if not key.collected:
-                key_x = key.platform.x + key.offset[0]
-                key_y = key.platform.y + key.offset[1]
-                dx = player.x - key_x
-                dy = player.y - key_y
-                if math.hypot(dx, dy) < (player.diameter/2 + key.size/2):
-                    key.collected = True
-                    print("Key collected!")
-                    state = {
-                        "player": {
-                            "x": player.x,
-                            "y": player.y,
-                            "lives": player.lives,
-                            "health": player.health
-                        },
-                        "platforms": [],
-                        "keys": []
-                    }
-                    for idx, p in enumerate(platforms):
-                        p_type = "Platform"
-                        if isinstance(p, WinningPlatform):
-                            p_type = "WinningPlatform"
-                        elif isinstance(p, EvilPlatform):
-                            p_type = "EvilPlatform"
-                        state["platforms"].append({
-                            "type": p_type,
-                            "x": p.x,
-                            "y": p.y,
-                            "speed": p.speed,
-                            "lower_bound": p.lower_bound,
-                            "upper_bound": p.upper_bound,
-                            "flip_spike": getattr(p, "flip_spike", False)
-                        })
-                    for idx, k in enumerate(keys):
-                        state["keys"].append({
-                            "platform_index": idx,
-                            "collected": k.collected
-                        })
-                    save_checkpoint(state)
-        all_keys_collected = all(k.collected for k in keys)
-        player.update(dt, platforms, all_keys_collected)
-        if player.won:
-            game_result = "win"
-            running = False
-        if player.lives <= 0:
-            game_result = "lose"
-            running = False
-        for arrow in arrows[:]:
-            arrow.update(dt)
-            if arrow.x < -1.2 or arrow.x > 1.2:
-                arrows.remove(arrow)
-            else:
-                if (abs(player.x - arrow.x) < (player.diameter/2 + arrow.width/2) and
-                    abs(player.y - arrow.y) < (player.diameter/2 + arrow.height/2)):
-                    player.take_damage(10)
-                    if arrow in arrows:
-                        arrows.remove(arrow)
+                if paused:
+                    # When paused, process menu navigation.
+                    if event.key == pygame.K_ESCAPE:
+                        paused = False  # Resume game
+                    elif event.key == pygame.K_UP:
+                        pause_selected = (pause_selected - 1) % len(pause_options)
+                    elif event.key == pygame.K_DOWN:
+                        pause_selected = (pause_selected + 1) % len(pause_options)
+                    elif event.key == pygame.K_RETURN:
+                        option = pause_options[pause_selected]
+                        if option == "New Game":
+                            new_game(wm)
+                        elif option == "Load Game":
+                            load_game(wm)
+                        elif option == "Select Biome":
+                            start_game(wm)
+                        elif option == "Exit":
+                            wm.quit()
+                            pygame.quit()
+                            sys.exit()
+                else:
+                    if event.key == pygame.K_ESCAPE:
+                        paused = True
+                    elif event.key == K_SPACE:
+                        player.flip_gravity()
+        
+        # When not paused, process continuous key presses and update game objects.
+        if not paused:
+            keys_pressed = pygame.key.get_pressed()
+            move_speed = 0.5
+            if keys_pressed[pygame.K_a]:
+                player.x -= move_speed * dt
+            if keys_pressed[pygame.K_d]:
+                player.x += move_speed * dt
+            if player.x - player.diameter/2 < -1:
+                player.x = -1 + player.diameter/2
+            if player.x + player.diameter/2 > 1:
+                player.x = 1 - player.diameter/2
+
+            if random.random() < 0.02:
+                if random.choice([True, False]):
+                    x_arrow = -1.1
+                    vx = random.uniform(0.3, 0.6)
+                else:
+                    x_arrow = 1.1
+                    vx = -random.uniform(0.3, 0.6)
+                y_arrow = random.uniform(-0.8, 0.8)
+                arrow = Arrow(x_arrow, y_arrow, 0.1, 0.1, vx)
+                arrows.append(arrow)
+            
+            for plat in platforms:
+                plat.update(dt)
+            for key in keys:
+                if not key.collected:
+                    key_x = key.platform.x + key.offset[0]
+                    key_y = key.platform.y + key.offset[1]
+                    dx = player.x - key_x
+                    dy = player.y - key_y
+                    if math.hypot(dx, dy) < (player.diameter/2 + key.size/2):
+                        key.collected = True
+                        print("Key collected!")
+                        state = {
+                            "player": {
+                                "x": player.x,
+                                "y": player.y,
+                                "lives": player.lives,
+                                "health": player.health
+                            },
+                            "platforms": [],
+                            "keys": []
+                        }
+                        for idx, p in enumerate(platforms):
+                            p_type = "Platform"
+                            if isinstance(p, WinningPlatform):
+                                p_type = "WinningPlatform"
+                            elif isinstance(p, EvilPlatform):
+                                p_type = "EvilPlatform"
+                            state["platforms"].append({
+                                "type": p_type,
+                                "x": p.x,
+                                "y": p.y,
+                                "speed": p.speed,
+                                "lower_bound": p.lower_bound,
+                                "upper_bound": p.upper_bound,
+                                "flip_spike": getattr(p, "flip_spike", False)
+                            })
+                        for idx, k in enumerate(keys):
+                            state["keys"].append({
+                                "platform_index": idx,
+                                "collected": k.collected
+                            })
+                        save_checkpoint(state)
+            
+            all_keys_collected = all(k.collected for k in keys)
+            player.update(dt, platforms, all_keys_collected)
+            
+            if player.won:
+                game_result = "win"
+                running = False
+            if player.lives <= 0:
+                game_result = "lose"
+                running = False
+
+            for arrow in arrows[:]:
+                arrow.update(dt)
+                if arrow.x < -1.2 or arrow.x > 1.2:
+                    arrows.remove(arrow)
+                else:
+                    if (abs(player.x - arrow.x) < (player.diameter/2 + arrow.width/2) and
+                        abs(player.y - arrow.y) < (player.diameter/2 + arrow.height/2)):
+                        player.take_damage(10)
+                        if arrow in arrows:
+                            arrows.remove(arrow)
+        
+        # Rendering.
         glViewport(0, 0, wm.width, wm.height)
         glClearColor(0.0, 0.0, 0.0, 1.0)
         glClear(GL_COLOR_BUFFER_BIT)
@@ -512,6 +558,8 @@ def run_game_loop(wm, assets, model_loc, shader):
             arrow.draw(model_loc)
         player.draw()
         glUseProgram(0)
+        
+        # HUD rendering.
         glMatrixMode(GL_PROJECTION)
         glPushMatrix()
         glLoadIdentity()
@@ -542,11 +590,45 @@ def run_game_loop(wm, assets, model_loc, shader):
         glMatrixMode(GL_PROJECTION)
         glPopMatrix()
         glMatrixMode(GL_MODELVIEW)
+        
+        # If the game is paused, render the menu overlay on top of the scene.
+        if paused:
+            # Draw a semi-transparent overlay.
+            glViewport(0, 0, wm.width, wm.height)
+            glMatrixMode(GL_PROJECTION)
+            glPushMatrix()
+            glLoadIdentity()
+            glOrtho(0, wm.width, 0, wm.height, -1, 1)
+            glMatrixMode(GL_MODELVIEW)
+            glPushMatrix()
+            glLoadIdentity()
+            glColor4f(0, 0, 0, 0.7)
+            glBegin(GL_QUADS)
+            glVertex2f(0, 0)
+            glVertex2f(wm.width, 0)
+            glVertex2f(wm.width, wm.height)
+            glVertex2f(0, wm.height)
+            glEnd()
+            glColor4f(1, 1, 1, 1)
+            # Draw the pause menu title.
+            draw_text("Paused", hud_font, wm.width//2 - 50, wm.height - 200, (255,255,0))
+            # Draw menu options.
+            for i, option in enumerate(pause_options):
+                color = (255, 255, 255)
+                if i == pause_selected:
+                    color = (255, 0, 0)
+                draw_text(option, hud_font, wm.width//2 - 50, wm.height - 250 - i*30, color)
+            glPopMatrix()
+            glMatrixMode(GL_PROJECTION)
+            glPopMatrix()
+            glMatrixMode(GL_MODELVIEW)
+        
         wm.swap_buffers()
+        
+    # Game result handling.
     if game_result in ("win", "lose"):
-        # clear the saved checkpoint
         save_checkpoint(None)
-        option = display_end_screen(wm, won=(game_result=="win"))    
+        option = display_end_screen(wm, won=(game_result=="win"))
         print("User selected:", option)
         if option == "New Game":
             new_game(wm)
