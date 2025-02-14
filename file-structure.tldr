@@ -142,11 +142,11 @@
 			"props": {
 				"color": "black",
 				"size": "m",
-				"w": 572.4479370117188,
-				"text": "TO-DO\n- adding a pause menu\n- integrate the end_screen in river and space\n- add load game in upside down\n- add assets\n-- player\n-- platforms and all",
+				"w": 747.3004449834116,
+				"text": "TO-DO\n- adding a pause menu\n- add assets\n-- player\n-- platforms and all",
 				"font": "draw",
 				"textAlign": "start",
-				"autoSize": true,
+				"autoSize": false,
 				"scale": 1
 			},
 			"parentId": "page:page",
@@ -732,9 +732,9 @@
 		{
 			"id": "pointer:pointer",
 			"typeName": "pointer",
-			"x": 1696.745631962703,
-			"y": 270.9003608589894,
-			"lastActivityTimestamp": 1739546047404,
+			"x": 1488.2036791743853,
+			"y": 143.1218643046547,
+			"lastActivityTimestamp": 1739557076169,
 			"meta": {}
 		},
 		{
@@ -757,7 +757,7 @@
 				"x": 0,
 				"y": 0,
 				"w": 1387.3333740234375,
-				"h": 675.3333740234375
+				"h": 558
 			},
 			"insets": [
 				false,
@@ -800,9 +800,9 @@
 			"typeName": "instance_page_state"
 		},
 		{
-			"x": -1291.1076353004003,
-			"y": -33.352081991681985,
-			"z": 1.4397073370968876,
+			"x": -1262.7687846341928,
+			"y": 29.8572664095809,
+			"z": 1.0675661913112635,
 			"meta": {},
 			"id": "camera:page:page",
 			"typeName": "camera"
