@@ -48,8 +48,8 @@
 			"typeName": "page"
 		},
 		{
-			"x": -725.9728735317077,
-			"y": 71.45254195769058,
+			"x": -802.8354102269548,
+			"y": 77.44185575242676,
 			"rotation": 0,
 			"isLocked": false,
 			"opacity": 1,
@@ -59,8 +59,8 @@
 			"props": {
 				"color": "black",
 				"size": "m",
-				"w": 148,
-				"text": "main.py",
+				"w": 192.91968210553284,
+				"text": "main.py\nrun_game.py\nREADME.md",
 				"font": "draw",
 				"textAlign": "start",
 				"autoSize": false,
@@ -131,29 +131,6 @@
 			"typeName": "shape"
 		},
 		{
-			"x": 1485.8700852941024,
-			"y": 64.48883698426317,
-			"rotation": 0,
-			"isLocked": false,
-			"opacity": 1,
-			"meta": {},
-			"id": "shape:ieo_gCR4NHYIt8TYxLH7j",
-			"type": "text",
-			"props": {
-				"color": "black",
-				"size": "m",
-				"w": 747.3004449834116,
-				"text": "TO-DO\n- adding a pause menu\n- add assets\n-- player\n-- platforms and all",
-				"font": "draw",
-				"textAlign": "start",
-				"autoSize": false,
-				"scale": 1
-			},
-			"parentId": "page:page",
-			"index": "a95cP",
-			"typeName": "shape"
-		},
-		{
 			"x": 354.33773727290554,
 			"y": 96.20577780385145,
 			"rotation": 0,
@@ -187,7 +164,7 @@
 			"type": "geo",
 			"props": {
 				"w": 421.33331298828125,
-				"h": 238.02375072306597,
+				"h": 292.92556917605157,
 				"geo": "rectangle",
 				"color": "black",
 				"labelColor": "black",
@@ -219,7 +196,7 @@
 				"color": "black",
 				"size": "m",
 				"w": 277.125,
-				"text": "SRC\n\nwelcome.py\nselect_biome.py\nselect_game_mode.py\npause_menu.py",
+				"text": "SRC\n\nwelcome.py\nselect_biome.py\nselect_game_mode.py\npause_screen.py\ngame_launcher.py\nend_screen.py",
 				"font": "draw",
 				"textAlign": "start",
 				"autoSize": true,
@@ -230,8 +207,8 @@
 			"typeName": "shape"
 		},
 		{
-			"x": -593.0122374220465,
-			"y": 331.8621385484674,
+			"x": -594.010391653729,
+			"y": 402.7354299909737,
 			"rotation": 0,
 			"isLocked": false,
 			"opacity": 1,
@@ -260,8 +237,8 @@
 			"typeName": "shape"
 		},
 		{
-			"x": -566.6529573150541,
-			"y": 355.47723993139033,
+			"x": -567.6511115467366,
+			"y": 426.3505313738967,
 			"rotation": 0,
 			"isLocked": false,
 			"opacity": 1,
@@ -294,8 +271,8 @@
 			"props": {
 				"color": "black",
 				"size": "m",
-				"w": 357.57293701171875,
-				"text": "SAVES\n\nriver_checkpoint.txt\nspace_checkpoint.json\nupside_down_checkpoint.txt",
+				"w": 370.3645935058594,
+				"text": "SAVES\n\nriver_checkpoint.json\nspace_checkpoint.json\nupside_down_checkpoint.json",
 				"font": "draw",
 				"textAlign": "start",
 				"autoSize": true,
@@ -732,17 +709,15 @@
 		{
 			"id": "pointer:pointer",
 			"typeName": "pointer",
-			"x": 1488.2036791743853,
-			"y": 143.1218643046547,
-			"lastActivityTimestamp": 1739557076169,
+			"x": 1114.3688302467995,
+			"y": 157.2930716955573,
+			"lastActivityTimestamp": 1739613636537,
 			"meta": {}
 		},
 		{
 			"followingUserId": null,
 			"opacityForNextShape": 1,
-			"stylesForNextShape": {
-				"tldraw:geo": "ellipse"
-			},
+			"stylesForNextShape": {},
 			"brush": null,
 			"scribbles": [],
 			"cursor": {
@@ -756,8 +731,8 @@
 			"screenBounds": {
 				"x": 0,
 				"y": 0,
-				"w": 1387.3333740234375,
-				"h": 558
+				"w": 1011.3333740234375,
+				"h": 495.3333435058594
 			},
 			"insets": [
 				false,
@@ -785,12 +760,12 @@
 			"typeName": "instance"
 		},
 		{
-			"editingShapeId": "shape:ieo_gCR4NHYIt8TYxLH7j",
+			"editingShapeId": "shape:MXQ0WLpnTz9VB23ZSsqN5",
 			"croppingShapeId": null,
 			"selectedShapeIds": [
-				"shape:ieo_gCR4NHYIt8TYxLH7j"
+				"shape:MXQ0WLpnTz9VB23ZSsqN5"
 			],
-			"hoveredShapeId": "shape:ieo_gCR4NHYIt8TYxLH7j",
+			"hoveredShapeId": "shape:MXQ0WLpnTz9VB23ZSsqN5",
 			"erasingShapeIds": [],
 			"hintingShapeIds": [],
 			"focusedGroupId": null,
@@ -800,41 +775,34 @@
 			"typeName": "instance_page_state"
 		},
 		{
-			"x": -1262.7687846341928,
-			"y": 29.8572664095809,
-			"z": 1.0675661913112635,
+			"x": -194.0144241992185,
+			"y": 161.13757129055247,
+			"z": 0.6678586889711063,
 			"meta": {},
 			"id": "camera:page:page",
 			"typeName": "camera"
 		},
 		{
-			"x": 556.7672767881668,
-			"y": 1367.8396676969382,
+			"x": -105.94920028684152,
+			"y": 687.6179755553057,
 			"rotation": 0,
 			"isLocked": false,
 			"opacity": 1,
 			"meta": {},
-			"id": "shape:EljFI2GlSu7DD3rndprnp",
-			"type": "geo",
+			"id": "shape:TiYRopwtguG-gbyjsLxXE",
+			"type": "text",
 			"props": {
-				"w": 111.09730620264988,
-				"h": 724.3961565933889,
-				"geo": "ellipse",
 				"color": "black",
-				"labelColor": "black",
-				"fill": "none",
-				"dash": "draw",
 				"size": "m",
+				"w": 198.59375,
+				"text": "All texture files",
 				"font": "draw",
-				"text": "",
-				"align": "middle",
-				"verticalAlign": "middle",
-				"growY": 0,
-				"url": "",
+				"textAlign": "start",
+				"autoSize": true,
 				"scale": 1
 			},
 			"parentId": "page:page",
-			"index": "ajBVH",
+			"index": "aX7cD",
 			"typeName": "shape"
 		}
 	]
