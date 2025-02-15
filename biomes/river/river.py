@@ -120,7 +120,6 @@ def load_checkpoint_data():
         return json.load(f)
 
 # --- River-Specific Classes ---
-# (Assuming you have LilyPad and Wave classes in biomes/river/)
 from biomes.river.lilypad import LilyPad
 from biomes.river.waves import Wave
 
